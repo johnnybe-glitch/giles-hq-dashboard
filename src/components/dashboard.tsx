@@ -83,6 +83,13 @@ type CronData = {
   jobs: CronJob[];
 };
 
+type AutomationHealthData = {
+  launchdJobs: Array<{ label: string; lastExitStatus: number | null; healthy: boolean }>;
+  healthyCount: number;
+  totalCount: number;
+  updatedAt: string | null;
+};
+
 type TokenData = {
   updated_at: string | null;
   tokens_today: number | null;
@@ -107,6 +114,7 @@ export function Dashboard() {
   const [headroom, setHeadroom] = useState<HeadroomData | null>(null);
   const [updating, setUpdating] = useState(false);
   const [cronData, setCronData] = useState<CronData | null>(null);
+  const [automationHealth, setAutomationHealth] = useState<AutomationHealthData | null>(null);
   const [showDisabledCron, setShowDisabledCron] = useState(false);
   const [deletingCronId, setDeletingCronId] = useState<string | null>(null);
   const [cronActionId, setCronActionId] = useState<string | null>(null);
@@ -138,7 +146,7 @@ export function Dashboard() {
 
     async function loadData() {
       try {
-        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes] = await Promise.all([
+        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes] = await Promise.all([
           fetch(`/api/events?limit=100`, { cache: "no-store" }),
           fetch(`/api/chats?limit=100`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
@@ -147,9 +155,10 @@ export function Dashboard() {
           fetch(`/api/version`, { cache: "no-store" }),
           fetch(`/api/headroom`, { cache: "no-store" }),
           fetch(`/api/cron`, { cache: "no-store" }),
+          fetch(`/api/automation-health`, { cache: "no-store" }),
         ]);
 
-        const allOk = [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes].every((r) => r.ok);
+        const allOk = [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes].every((r) => r.ok);
         const eventsData = eventsRes.ok ? ((await eventsRes.json()) as { events?: EventRow[] }) : { events: [] };
         const chatsData = chatsRes.ok ? ((await chatsRes.json()) as { chats?: ChatRow[] }) : { chats: [] };
         const tokenData = tokensRes.ok ? ((await tokensRes.json()) as TokenData) : null;
@@ -158,6 +167,7 @@ export function Dashboard() {
         const versionData = versionRes.ok ? ((await versionRes.json()) as VersionInfo) : null;
         const headroomData = headroomRes.ok ? ((await headroomRes.json()) as HeadroomData) : null;
         const cron = cronRes.ok ? ((await cronRes.json()) as CronData) : null;
+        const automation = automationHealthRes.ok ? ((await automationHealthRes.json()) as AutomationHealthData) : null;
 
         if (!cancelled) {
           setEvents(eventsData.events ?? []);
@@ -168,6 +178,7 @@ export function Dashboard() {
           if (versionData) setVersionInfo(versionData);
           if (headroomData) setHeadroom(headroomData);
           if (cron) setCronData(cron);
+          if (automation) setAutomationHealth(automation);
           setSyncHealth(allOk ? "healthy" : "delayed");
           setLastRefreshAt(Date.now());
         }
@@ -506,6 +517,23 @@ export function Dashboard() {
               <div><strong>{cronData?.enabledCount ?? 0}</strong><span>Enabled</span></div>
               <div><strong>{cronData?.disabledCount ?? 0}</strong><span>Disabled</span></div>
               <div><strong>{formatRelativeTime(cronData?.updatedAt ?? null)}</strong><span>Last refresh</span></div>
+            </div>
+
+            <div className="automation-health">
+              <div className="automation-health-title">Maintenance runtime health</div>
+              {(automationHealth?.launchdJobs ?? []).length ? (
+                <div className="automation-health-list">
+                  {(automationHealth?.launchdJobs ?? []).map((j) => (
+                    <div className="automation-health-row" key={j.label}>
+                      <span className={`automation-health-dot ${j.healthy ? "ok" : "fail"}`} />
+                      <span className="automation-health-label">{j.label.replace("com.giles.", "")}</span>
+                      <span className={`automation-health-state ${j.healthy ? "ok" : "fail"}`}>{j.healthy ? "OK" : `EXIT ${j.lastExitStatus ?? "?"}`}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No maintenance runtime jobs detected.</div>
+              )}
             </div>
 
             <div className="cron-upcoming">
