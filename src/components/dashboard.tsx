@@ -64,6 +64,22 @@ type HeadroomData = {
   }>;
 };
 
+type CronData = {
+  enabledCount: number;
+  disabledCount: number;
+  updatedAt: string | null;
+  upcoming: Array<{ name: string; nextRunAt: string | null }>;
+  jobs: Array<{
+    jobId: string;
+    name: string;
+    enabled: boolean;
+    schedule: string;
+    nextRunAt: string | null;
+    lastRunAt: string | null;
+    lastOk: boolean;
+  }>;
+};
+
 type TokenData = {
   updated_at: string | null;
   tokens_today: number | null;
@@ -87,13 +103,15 @@ export function Dashboard() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [headroom, setHeadroom] = useState<HeadroomData | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [cronData, setCronData] = useState<CronData | null>(null);
+  const [showDisabledCron, setShowDisabledCron] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadData() {
       try {
-        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes] = await Promise.all([
+        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes] = await Promise.all([
           fetch(`/api/events?limit=${eventLimit}`, { cache: "no-store" }),
           fetch(`/api/chats?limit=${eventLimit}`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
@@ -101,9 +119,10 @@ export function Dashboard() {
           fetch(`/api/workers`, { cache: "no-store" }),
           fetch(`/api/version`, { cache: "no-store" }),
           fetch(`/api/headroom`, { cache: "no-store" }),
+          fetch(`/api/cron`, { cache: "no-store" }),
         ]);
 
-        if (!eventsRes.ok || !chatsRes.ok || !tokensRes.ok || !nowNextRes.ok || !workersRes.ok || !versionRes.ok || !headroomRes.ok) return;
+        if (!eventsRes.ok || !chatsRes.ok || !tokensRes.ok || !nowNextRes.ok || !workersRes.ok || !versionRes.ok || !headroomRes.ok || !cronRes.ok) return;
 
         const eventsData = (await eventsRes.json()) as { events?: EventRow[] };
         const chatsData = (await chatsRes.json()) as { chats?: ChatRow[] };
@@ -112,6 +131,7 @@ export function Dashboard() {
         const workersData = (await workersRes.json()) as { workers?: WorkerData[] };
         const versionData = (await versionRes.json()) as VersionInfo;
         const headroomData = (await headroomRes.json()) as HeadroomData;
+        const cron = (await cronRes.json()) as CronData;
 
         if (!cancelled) {
           setEvents(eventsData.events ?? []);
@@ -121,6 +141,7 @@ export function Dashboard() {
           setWorkers(workersData.workers ?? []);
           setVersionInfo(versionData);
           setHeadroom(headroomData);
+          setCronData(cron);
           setLastRefreshAt(Date.now());
         }
       } catch {}
@@ -344,10 +365,48 @@ export function Dashboard() {
 
         <Card className="cron-card span-2">
           <CardHeader>
-            <CardTitle>Cron Jobs</CardTitle>
+            <CardTitle>Automations (Cron)</CardTitle>
+            <label className="cron-toggle-label">
+              <input type="checkbox" checked={showDisabledCron} onChange={(e) => setShowDisabledCron(e.target.checked)} /> Show disabled
+            </label>
           </CardHeader>
           <CardContent>
-            <p className="empty-state">No cron schedule loaded yet. Jobs will appear here when wired.</p>
+            <div className="cron-summary">
+              <div><strong>{cronData?.enabledCount ?? 0}</strong><span>Enabled</span></div>
+              <div><strong>{cronData?.disabledCount ?? 0}</strong><span>Disabled</span></div>
+              <div><strong>{formatRelativeTime(cronData?.updatedAt ?? null)}</strong><span>Last refresh</span></div>
+            </div>
+
+            <div className="cron-upcoming">
+              <div className="cron-upcoming-title">Upcoming (next 5)</div>
+              {(cronData?.upcoming ?? []).length ? (
+                (cronData?.upcoming ?? []).map((u, idx) => (
+                  <div className="cron-upcoming-row" key={`${u.name}-${idx}`}>• {u.nextRunAt ? formatRelativeTime(u.nextRunAt) : "—"} · {u.name}</div>
+                ))
+              ) : (
+                <div className="empty-state">No upcoming jobs.</div>
+              )}
+            </div>
+
+            <div className="cron-jobs">
+              {(cronData?.jobs ?? [])
+                .filter((j) => (showDisabledCron ? true : j.enabled))
+                .map((job) => (
+                  <div className="cron-job" key={job.jobId}>
+                    <div className="cron-job-top">
+                      <div>
+                        <div className="cron-job-name">{job.name}</div>
+                        <div className="cron-job-id">{job.jobId}</div>
+                      </div>
+                      <div className="cron-job-badges">
+                        <span className={`cron-badge ${job.lastOk ? "ok" : "fail"}`}>{job.lastOk ? "LAST OK" : "LAST FAIL"}</span>
+                        <span className={`cron-badge ${job.enabled ? "enabled" : "disabled"}`}>{job.enabled ? "ENABLED" : "DISABLED"}</span>
+                      </div>
+                    </div>
+                    <div className="cron-job-meta">Schedule: {job.schedule} · Next: {formatRelativeTime(job.nextRunAt)} · Last: {formatRelativeTime(job.lastRunAt)}</div>
+                  </div>
+                ))}
+            </div>
           </CardContent>
         </Card>
       </main>
