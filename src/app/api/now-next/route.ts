@@ -41,14 +41,19 @@ export async function GET() {
   const runtimeRoot = await resolveRuntimeRoot();
   const status = runtimeRoot ? await readJson<StatusFile>(runtimeRoot, "status.json") : null;
 
-  const openclaw = await readOpenclawStatus();
+  const [openclaw, modelStatus] = await Promise.all([readOpenclawStatus(), readOpenclawModelStatus()]);
   const latestUserTask = await readLatestUserTask();
-  const hasActiveWork = Boolean(status?.current_run?.task_name) || Boolean(openclaw?.hasActiveSubagent);
+  const hasActiveWork =
+    Boolean(status?.current_run?.task_name) || Boolean(openclaw?.hasActiveSubagent) || Boolean(openclaw?.hasRecentMainActivity);
   const now = buildNow(status, openclaw?.activeTask, latestUserTask, hasActiveWork);
   const queued = await buildQueued();
 
-  const model = status?.model ?? openclaw?.model ?? "gpt-5.3-codex";
-  const fallbacks = status?.fallbacks?.length ? status.fallbacks : openclaw?.fallbacks ?? [];
+  const model = status?.model ?? modelStatus?.primary ?? openclaw?.model ?? "gpt-5.3-codex";
+  const fallbacks = status?.fallbacks?.length
+    ? status.fallbacks
+    : modelStatus?.fallbacks?.length
+      ? modelStatus.fallbacks
+      : openclaw?.fallbacks ?? [];
   const localHelper =
     typeof status?.local_helper === "boolean"
       ? status.local_helper
@@ -115,6 +120,19 @@ async function readCronJobs(): Promise<CronJob[]> {
   }
 }
 
+async function readOpenclawModelStatus(): Promise<{ primary?: string; fallbacks: string[] } | null> {
+  try {
+    const { stdout } = await execFileAsync(OPENCLAW_BIN, ["models", "status", "--json"], { timeout: 12000 });
+    const parsed = JSON.parse(stdout);
+    return {
+      primary: parsed?.resolvedDefault ?? parsed?.defaultModel,
+      fallbacks: Array.isArray(parsed?.fallbacks) ? parsed.fallbacks : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function readOpenclawStatus() {
   try {
     const { stdout } = await execFileAsync(OPENCLAW_BIN, ["status", "--json"], { timeout: 12000 });
@@ -126,6 +144,9 @@ async function readOpenclawStatus() {
     const hasActiveSubagent = recentSessions.some(
       (s: { key?: string; age?: number }) => !String(s?.key ?? "").endsWith(":main") && Number(s?.age ?? 9e9) < 180000,
     );
+    const hasRecentMainActivity = recentSessions.some(
+      (s: { key?: string; age?: number }) => String(s?.key ?? "").endsWith(":main") && Number(s?.age ?? 9e9) < 60000,
+    );
 
     const activeTask = activeRecent?.key ? `${String(activeRecent.key).split(":").pop()} task` : null;
 
@@ -136,6 +157,7 @@ async function readOpenclawStatus() {
       updatedAt: typeof recent?.updatedAt === "number" ? new Date(recent.updatedAt).toISOString() : null,
       activeTask,
       hasActiveSubagent,
+      hasRecentMainActivity,
     };
   } catch {
     return null;
