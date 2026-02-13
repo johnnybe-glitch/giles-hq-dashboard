@@ -52,6 +52,18 @@ type VersionInfo = {
   updateAvailable: boolean;
 };
 
+type HeadroomData = {
+  provider: string;
+  updatedAt: string | null;
+  windows: Array<{
+    label: string;
+    usedPercent: number;
+    leftPercent: number;
+    resetAt: string | null;
+    tone: "green" | "amber" | "red";
+  }>;
+};
+
 type TokenData = {
   updated_at: string | null;
   tokens_today: number | null;
@@ -73,6 +85,7 @@ export function Dashboard() {
   const [nowNext, setNowNext] = useState<NowNextData | null>(null);
   const [workers, setWorkers] = useState<WorkerData[]>([]);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+  const [headroom, setHeadroom] = useState<HeadroomData | null>(null);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -80,16 +93,17 @@ export function Dashboard() {
 
     async function loadData() {
       try {
-        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes] = await Promise.all([
+        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes] = await Promise.all([
           fetch(`/api/events?limit=${eventLimit}`, { cache: "no-store" }),
           fetch(`/api/chats?limit=${eventLimit}`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
           fetch(`/api/now-next`, { cache: "no-store" }),
           fetch(`/api/workers`, { cache: "no-store" }),
           fetch(`/api/version`, { cache: "no-store" }),
+          fetch(`/api/headroom`, { cache: "no-store" }),
         ]);
 
-        if (!eventsRes.ok || !chatsRes.ok || !tokensRes.ok || !nowNextRes.ok || !workersRes.ok || !versionRes.ok) return;
+        if (!eventsRes.ok || !chatsRes.ok || !tokensRes.ok || !nowNextRes.ok || !workersRes.ok || !versionRes.ok || !headroomRes.ok) return;
 
         const eventsData = (await eventsRes.json()) as { events?: EventRow[] };
         const chatsData = (await chatsRes.json()) as { chats?: ChatRow[] };
@@ -97,6 +111,7 @@ export function Dashboard() {
         const nowNextData = (await nowNextRes.json()) as NowNextData;
         const workersData = (await workersRes.json()) as { workers?: WorkerData[] };
         const versionData = (await versionRes.json()) as VersionInfo;
+        const headroomData = (await headroomRes.json()) as HeadroomData;
 
         if (!cancelled) {
           setEvents(eventsData.events ?? []);
@@ -105,6 +120,7 @@ export function Dashboard() {
           setNowNext(nowNextData);
           setWorkers(workersData.workers ?? []);
           setVersionInfo(versionData);
+          setHeadroom(headroomData);
           setLastRefreshAt(Date.now());
         }
       } catch {}
@@ -270,17 +286,25 @@ export function Dashboard() {
             <CardTitle>Headroom</CardTitle>
           </CardHeader>
           <CardContent>
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.8 }}>5h window</div>
-                <div style={{ fontSize: 24, fontWeight: 700 }}>47% left</div>
+            {headroom?.windows?.length ? (
+              <div className="headroom-list">
+                {headroom.windows.map((w, idx) => (
+                  <div key={`${w.label}-${idx}`} className="headroom-row">
+                    <div className="headroom-top">
+                      <span className="headroom-label">{w.label} window</span>
+                      <span className={`headroom-value tone-${w.tone}`}>{w.leftPercent}% left</span>
+                    </div>
+                    <div className="headroom-track">
+                      <div className={`headroom-fill tone-${w.tone}`} style={{ width: `${w.leftPercent}%` }} />
+                    </div>
+                    <div className="headroom-meta">Reset {formatRelativeTime(w.resetAt)}</div>
+                  </div>
+                ))}
+                <div className="headroom-updated">Provider {headroom.provider} · Updated {formatRelativeTime(headroom.updatedAt)}</div>
               </div>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.8 }}>Long window</div>
-                <div style={{ fontSize: 24, fontWeight: 700 }}>29% left</div>
-              </div>
-              <p className="empty-state">Headroom data wiring next.</p>
-            </div>
+            ) : (
+              <p className="empty-state">No usage windows available yet.</p>
+            )}
           </CardContent>
         </Card>
 

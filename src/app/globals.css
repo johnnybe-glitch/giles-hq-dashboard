@@ -858,3 +858,72 @@ body {
   border-radius: inherit;
   background: linear-gradient(90deg, rgba(88, 176, 255, 0.95), rgba(120, 210, 255, 0.95));
 }
+
+.headroom-list {
+  display: grid;
+  gap: 12px;
+}
+
+.headroom-row {
+  display: grid;
+  gap: 6px;
+}
+
+.headroom-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headroom-label {
+  font-size: 13px;
+  color: rgba(185, 202, 226, 0.85);
+}
+
+.headroom-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.headroom-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.headroom-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.tone-green {
+  color: rgba(74, 222, 128, 0.98);
+}
+
+.headroom-fill.tone-green {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.95), rgba(74, 222, 128, 0.95));
+}
+
+.tone-amber {
+  color: rgba(251, 191, 36, 0.98);
+}
+
+.headroom-fill.tone-amber {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.95), rgba(251, 191, 36, 0.95));
+}
+
+.tone-red {
+  color: rgba(248, 113, 113, 0.98);
+}
+
+.headroom-fill.tone-red {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.95), rgba(248, 113, 113, 0.95));
+}
+
+.headroom-meta,
+.headroom-updated {
+  font-size: 12px;
+  color: rgba(165, 184, 211, 0.8);
+}
