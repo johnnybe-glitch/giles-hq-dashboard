@@ -20,7 +20,7 @@ type ChatRow = { ts: string | null; role: string; text: string };
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const limit = Math.max(1, Math.min(50, Number(searchParams.get("limit") || 10)));
+  const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") || 10)));
 
   const file = await latestSessionFile();
   if (!file) return NextResponse.json({ chats: [] as ChatRow[] });

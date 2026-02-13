@@ -19,7 +19,7 @@ type EventRow = {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const limit = Math.max(1, Math.min(50, Number(searchParams.get("limit") || 10)));
+  const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") || 10)));
 
   const logFile = await resolveLatestLogFile();
   if (!logFile) return NextResponse.json({ events: [] as EventRow[] });
