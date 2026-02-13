@@ -548,22 +548,28 @@ export function Dashboard() {
             </div>
 
             <div className="cron-jobs">
-              <CronSection
-                title="Maintenance automations"
-                jobs={maintenanceCronJobs}
-                cronActionId={cronActionId}
-                deletingCronId={deletingCronId}
-                onRun={runCronAction}
-                onRemove={removeCronJob}
-              />
-              <CronSection
-                title="Operational automations"
-                jobs={operationalCronJobs}
-                cronActionId={cronActionId}
-                deletingCronId={deletingCronId}
-                onRun={runCronAction}
-                onRemove={removeCronJob}
-              />
+              {maintenanceCronJobs.length ? (
+                <CronSection
+                  title="Maintenance automations"
+                  jobs={maintenanceCronJobs}
+                  cronActionId={cronActionId}
+                  deletingCronId={deletingCronId}
+                  onRun={runCronAction}
+                  onRemove={removeCronJob}
+                />
+              ) : null}
+              {operationalCronJobs.length ? (
+                <CronSection
+                  title="Operational automations"
+                  jobs={operationalCronJobs}
+                  cronActionId={cronActionId}
+                  deletingCronId={deletingCronId}
+                  onRun={runCronAction}
+                  onRemove={removeCronJob}
+                />
+              ) : (
+                <div className="empty-state">No cron automations configured.</div>
+              )}
             </div>
           </CardContent>
         </Card>
