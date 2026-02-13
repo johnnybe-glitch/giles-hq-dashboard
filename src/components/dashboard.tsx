@@ -96,7 +96,7 @@ type TokenData = {
 
 export function Dashboard() {
   const [lastRefreshAt, setLastRefreshAt] = useState<number>(0);
-  const [eventLimit, setEventLimit] = useState<15 | 50>(15);
+  const [eventLimit, setEventLimit] = useState<50 | 100>(50);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [chatRows, setChatRows] = useState<ChatRow[]>([]);
   const [eventView, setEventView] = useState<"all" | "chats">("all");
@@ -139,8 +139,8 @@ export function Dashboard() {
     async function loadData() {
       try {
         const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes] = await Promise.all([
-          fetch(`/api/events?limit=50`, { cache: "no-store" }),
-          fetch(`/api/chats?limit=50`, { cache: "no-store" }),
+          fetch(`/api/events?limit=100`, { cache: "no-store" }),
+          fetch(`/api/chats?limit=100`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
           fetch(`/api/now-next`, { cache: "no-store" }),
           fetch(`/api/workers`, { cache: "no-store" }),
@@ -333,14 +333,14 @@ export function Dashboard() {
               <button className="eventlog-toggle" onClick={() => setEventView("chats")}>Chats</button>
               <button
                 className="eventlog-toggle"
-                onClick={() => setEventLimit(eventLimit === 15 ? 50 : 15)}
+                onClick={() => setEventLimit(eventLimit === 50 ? 100 : 50)}
               >
-                {eventLimit === 15 ? "Show more" : "Show less"}
+                {eventLimit === 50 ? "Show more" : "Show less"}
               </button>
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollableList className={eventLimit === 50 ? "eventlog-expanded" : "eventlog-collapsed"}>
+            <ScrollableList className={eventLimit === 100 ? "eventlog-expanded" : "eventlog-collapsed"}>
               {eventView === "all" ? (
                 events.length === 0 ? (
                   <p className="empty-state">No recent events.</p>
@@ -361,7 +361,7 @@ export function Dashboard() {
                 ))
               )}
             </ScrollableList>
-            <p className="eventlog-note">Default shows 15 rows; expand for 50.</p>
+            <p className="eventlog-note">Default shows 50 rows; expand for 100.</p>
           </CardContent>
         </Card>
 
