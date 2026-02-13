@@ -868,11 +868,9 @@ body {
 .eventlog-card .scrollable-list {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
+  overflow: hidden;
+  padding-right: 0;
   gap: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(167, 139, 250, 0.35) rgba(255, 255, 255, 0.06);
 }
 
 .eventlog-card .scrollable-list.eventlog-collapsed {
@@ -887,21 +885,6 @@ body {
   max-height: 520px;
 }
 
-.eventlog-card .scrollable-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.eventlog-card .scrollable-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-}
-
-.eventlog-card .scrollable-list::-webkit-scrollbar-thumb {
-  background: rgba(167, 139, 250, 0.35);
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 .eventlog-line {
   white-space: normal;
   overflow: visible;
@@ -909,8 +892,16 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   color: rgba(198, 213, 236, 0.86);
   font-size: 12px;
-  line-height: 1.45;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.eventlog-system-line {
+  line-height: 1.28;
+  padding: 3px 0;
+}
+
+.eventlog-chat-line {
+  line-height: 1.45;
   padding: 6px 0;
 }
 
@@ -1217,7 +1208,21 @@ body {
 
 .cron-jobs {
   display: grid;
-  gap: 14px;
+  gap: 16px;
+}
+
+.cron-section {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
+.cron-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: rgba(189, 206, 231, 0.82);
 }
 
 .cron-job {

@@ -64,21 +64,23 @@ type HeadroomData = {
   }>;
 };
 
+type CronJob = {
+  jobId: string;
+  name: string;
+  enabled: boolean;
+  schedule: string;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastOk: boolean;
+  model: string | null;
+};
+
 type CronData = {
   enabledCount: number;
   disabledCount: number;
   updatedAt: string | null;
   upcoming: Array<{ name: string; nextRunAt: string | null }>;
-  jobs: Array<{
-    jobId: string;
-    name: string;
-    enabled: boolean;
-    schedule: string;
-    nextRunAt: string | null;
-    lastRunAt: string | null;
-    lastOk: boolean;
-    model: string | null;
-  }>;
+  jobs: CronJob[];
 };
 
 type TokenData = {
@@ -250,6 +252,10 @@ export function Dashboard() {
     }
   };
 
+  const visibleCronJobs = (cronData?.jobs ?? []).filter((j) => (showDisabledCron ? true : j.enabled));
+  const maintenanceCronJobs = visibleCronJobs.filter(isMaintenanceCronJob);
+  const operationalCronJobs = visibleCronJobs.filter((j) => !isMaintenanceCronJob(j));
+
   return (
     <div className="dashboard-shell">
       <header className="top-bar">
@@ -340,7 +346,7 @@ export function Dashboard() {
                   <p className="empty-state">No recent events.</p>
                 ) : (
                   events.slice(0, eventLimit).map((event, idx) => (
-                    <div key={`${event.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line">
+                    <div key={`${event.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line eventlog-system-line">
                       • {event.ts ? formatRelativeTime(event.ts) : "—"} · {event.type} {event.message ? ` · ${event.message}` : ""}
                     </div>
                   ))
@@ -349,7 +355,7 @@ export function Dashboard() {
                 <p className="empty-state">No chat history found.</p>
               ) : (
                 chatRows.slice(0, eventLimit).map((row, idx) => (
-                  <div key={`${row.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line">
+                  <div key={`${row.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line eventlog-chat-line">
                     • {row.ts ? formatRelativeTime(row.ts) : "—"} · {row.role} · {row.text}
                   </div>
                 ))
@@ -514,34 +520,84 @@ export function Dashboard() {
             </div>
 
             <div className="cron-jobs">
-              {(cronData?.jobs ?? [])
-                .filter((j) => (showDisabledCron ? true : j.enabled))
-                .map((job) => (
-                  <div className="cron-job" key={job.jobId}>
-                    <div className="cron-job-top">
-                      <div>
-                        <div className="cron-job-name">{job.name}</div>
-                        {job.model ? <div className="cron-job-model">Model: {job.model}</div> : null}
-                      </div>
-                      <div className="cron-job-badges">
-                        <span className={`cron-badge ${job.lastOk ? "ok" : "fail"}`}>{job.lastOk ? "LAST OK" : "LAST FAIL"}</span>
-                        <span className={`cron-badge ${job.enabled ? "enabled" : "disabled"}`}>{job.enabled ? "ENABLED" : "DISABLED"}</span>
-                        <button className="cron-run-btn" onClick={() => runCronAction(job.jobId, "run")} disabled={cronActionId === job.jobId}>Run now</button>
-                        <button className="cron-toggle-btn" onClick={() => runCronAction(job.jobId, job.enabled ? "disable" : "enable")} disabled={cronActionId === job.jobId}>
-                          {job.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button className="cron-remove-btn" onClick={() => removeCronJob(job.jobId)} disabled={deletingCronId === job.jobId}>
-                          {deletingCronId === job.jobId ? "Removing…" : "Remove"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="cron-job-meta">Schedule: {formatCronSchedule(job.schedule)} · Next: {formatCronTime(job.nextRunAt)} · Last: {formatCronTime(job.lastRunAt)}</div>
-                  </div>
-                ))}
+              <CronSection
+                title="Maintenance automations"
+                jobs={maintenanceCronJobs}
+                cronActionId={cronActionId}
+                deletingCronId={deletingCronId}
+                onRun={runCronAction}
+                onRemove={removeCronJob}
+              />
+              <CronSection
+                title="Operational automations"
+                jobs={operationalCronJobs}
+                cronActionId={cronActionId}
+                deletingCronId={deletingCronId}
+                onRun={runCronAction}
+                onRemove={removeCronJob}
+              />
             </div>
           </CardContent>
         </Card>
       </main>
+    </div>
+  );
+}
+
+function isMaintenanceCronJob(job: CronJob): boolean {
+  const text = `${job.name} ${job.model ?? ""}`.toLowerCase();
+  return (
+    text.includes("backup") ||
+    text.includes("safety tag") ||
+    text.includes("snapshot") ||
+    text.includes("maintenance")
+  );
+}
+
+function CronSection({
+  title,
+  jobs,
+  cronActionId,
+  deletingCronId,
+  onRun,
+  onRemove,
+}: {
+  title: string;
+  jobs: CronJob[];
+  cronActionId: string | null;
+  deletingCronId: string | null;
+  onRun: (jobId: string, op: "enable" | "disable" | "run") => void;
+  onRemove: (jobId: string) => void;
+}) {
+  return (
+    <div className="cron-section">
+      <div className="cron-section-title">{title}</div>
+      {jobs.length ? (
+        jobs.map((job) => (
+          <div className="cron-job" key={job.jobId}>
+            <div className="cron-job-top">
+              <div>
+                <div className="cron-job-name">{job.name}</div>
+                {job.model ? <div className="cron-job-model">Model: {job.model}</div> : null}
+              </div>
+              <div className="cron-job-badges">
+                <span className={`cron-badge ${job.lastOk ? "ok" : "fail"}`}>{job.lastOk ? "LAST OK" : "LAST FAIL"}</span>
+                <span className={`cron-badge ${job.enabled ? "enabled" : "disabled"}`}>{job.enabled ? "ENABLED" : "DISABLED"}</span>
+                <button className="cron-run-btn" onClick={() => onRun(job.jobId, "run")} disabled={cronActionId === job.jobId}>Run now</button>
+                <button className="cron-toggle-btn" onClick={() => onRun(job.jobId, job.enabled ? "disable" : "enable")} disabled={cronActionId === job.jobId}>
+                  {job.enabled ? "Disable" : "Enable"}
+                </button>
+                <button className="cron-remove-btn" onClick={() => onRemove(job.jobId)} disabled={deletingCronId === job.jobId}>
+                  {deletingCronId === job.jobId ? "Removing…" : "Remove"}
+                </button>
+              </div>
+            </div>
+            <div className="cron-job-meta">Schedule: {formatCronSchedule(job.schedule)} · Next: {formatCronTime(job.nextRunAt)} · Last: {formatCronTime(job.lastRunAt)}</div>
+          </div>
+        ))
+      ) : (
+        <div className="empty-state">No jobs in this section.</div>
+      )}
     </div>
   );
 }
