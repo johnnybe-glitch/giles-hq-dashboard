@@ -42,7 +42,9 @@ export async function GET() {
   const status = runtimeRoot ? await readJson<StatusFile>(runtimeRoot, "status.json") : null;
 
   const openclaw = await readOpenclawStatus();
-  const now = buildNow(status, openclaw?.activeTask);
+  const latestUserTask = await readLatestUserTask();
+  const hasActiveWork = Boolean(status?.current_run?.task_name) || Boolean(openclaw?.hasActiveSubagent);
+  const now = buildNow(status, openclaw?.activeTask, latestUserTask, hasActiveWork);
   const queued = await buildQueued();
 
   const model = status?.model ?? openclaw?.model ?? "gpt-5.3-codex";
@@ -54,10 +56,18 @@ export async function GET() {
 
   const lastUpdateIso = status?.last_activity_at ?? openclaw?.updatedAt ?? null;
 
+  const explicitState = (status?.presence_state ?? "").toLowerCase();
+  const computedState =
+    explicitState === "error" || explicitState === "blocked" || explicitState === "offline"
+      ? explicitState
+      : hasActiveWork
+        ? "working"
+        : "idle";
+
   return NextResponse.json({
     now,
     queued,
-    status: (status?.presence_state ?? "working").toUpperCase(),
+    status: computedState.toUpperCase(),
     model,
     fallbacks,
     local_helper: localHelper,
@@ -66,16 +76,19 @@ export async function GET() {
   });
 }
 
-function buildNow(status: StatusFile | null, activeTask?: string | null) {
+function buildNow(status: StatusFile | null, activeTask?: string | null, latestUserTask?: string | null, hasActiveWork = false) {
   const task = status?.current_run?.task_name;
   const stage = status?.current_run?.stage;
   const stageText = stage?.name
     ? `${stage.name}${stage.index && stage.total ? ` (${stage.index}/${stage.total})` : ""}`
     : null;
 
+  const genericActive = activeTask && /^main task$/i.test(activeTask.trim());
+  const chosenTask = task ?? (genericActive ? null : activeTask) ?? latestUserTask ?? activeTask;
+
   return {
-    title: task ?? activeTask ?? "No active task",
-    detail: stageText ?? status?.status_text ?? (activeTask ? "In progress" : "Standing by"),
+    title: chosenTask ?? "No active task",
+    detail: stageText ?? status?.status_text ?? (hasActiveWork ? "In progress" : "Standing by"),
   };
 }
 
@@ -108,13 +121,13 @@ async function readOpenclawStatus() {
     const parsed = JSON.parse(stdout);
     const recent = parsed?.sessions?.recent?.[0];
     const heartbeatModel = parsed?.heartbeat?.agents?.[0]?.model;
-    const activeRecent = Array.isArray(parsed?.sessions?.recent)
-      ? parsed.sessions.recent.find((s: { key?: string; age?: number }) => Number(s?.age ?? 9e9) < 180000)
-      : null;
+    const recentSessions = Array.isArray(parsed?.sessions?.recent) ? parsed.sessions.recent : [];
+    const activeRecent = recentSessions.find((s: { key?: string; age?: number }) => Number(s?.age ?? 9e9) < 180000);
+    const hasActiveSubagent = recentSessions.some(
+      (s: { key?: string; age?: number }) => !String(s?.key ?? "").endsWith(":main") && Number(s?.age ?? 9e9) < 180000,
+    );
 
-    const activeTask = activeRecent?.key
-      ? `${String(activeRecent.key).split(":").pop()} task`
-      : null;
+    const activeTask = activeRecent?.key ? `${String(activeRecent.key).split(":").pop()} task` : null;
 
     return {
       model: recent?.model as string | undefined,
@@ -122,6 +135,7 @@ async function readOpenclawStatus() {
       heartbeatModel: heartbeatModel as string | undefined,
       updatedAt: typeof recent?.updatedAt === "number" ? new Date(recent.updatedAt).toISOString() : null,
       activeTask,
+      hasActiveSubagent,
     };
   } catch {
     return null;
@@ -145,6 +159,59 @@ async function readJson<T>(root: string, filename: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+async function readLatestUserTask(): Promise<string | null> {
+  try {
+    const dir = "/Users/giles/.openclaw/agents/main/sessions";
+    const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+    if (!files.length) return null;
+
+    const stats = await Promise.all(
+      files.map(async (f) => {
+        const fp = path.join(dir, f);
+        const st = await fs.stat(fp);
+        return { fp, m: st.mtimeMs };
+      }),
+    );
+    stats.sort((a, b) => b.m - a.m);
+
+    const raw = await fs.readFile(stats[0].fp, "utf8");
+    const lines = raw.split(/\r?\n/).filter(Boolean).reverse();
+
+    for (const line of lines) {
+      try {
+        const row = JSON.parse(line);
+        if (row?.type !== "message" || row?.message?.role !== "user") continue;
+        const text = (row?.message?.content ?? [])
+          .filter((p: { type?: string; text?: string }) => p?.type === "text" && typeof p?.text === "string")
+          .map((p: { text?: string }) => p.text ?? "")
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!text) continue;
+        return summarizeTaskText(text);
+      } catch {}
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function summarizeTaskText(input: string): string {
+  const cleaned = input
+    .replace(/Conversation info[\s\S]*$/i, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\{[\s\S]*\}/g, "")
+    .replace(/\[\[[^\]]+\]\]/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "Working on your latest task";
+  const firstSentence = cleaned.split(/[.!?]\s/)[0] ?? cleaned;
+  return truncate(firstSentence, 72);
 }
 
 function truncate(value: string, max: number) {

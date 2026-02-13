@@ -8,7 +8,7 @@ import { ScrollableList } from "./ui/scrollable-list";
 import { formatRelativeTime } from "@/lib/relative-time";
 
 const REFRESH_MS = 30_000;
-const BUILD_STAMP = "Live (dev)";
+const HEADER_CONTEXT = "Gateway status";
 
 type EventRow = {
   ts: string | null;
@@ -77,6 +77,7 @@ type CronData = {
     nextRunAt: string | null;
     lastRunAt: string | null;
     lastOk: boolean;
+    model: string | null;
   }>;
 };
 
@@ -93,7 +94,7 @@ type TokenData = {
 
 export function Dashboard() {
   const [lastRefreshAt, setLastRefreshAt] = useState<number>(0);
-  const [eventLimit, setEventLimit] = useState<10 | 50>(10);
+  const [eventLimit, setEventLimit] = useState<15 | 50>(15);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [chatRows, setChatRows] = useState<ChatRow[]>([]);
   const [eventView, setEventView] = useState<"all" | "chats">("all");
@@ -105,6 +106,30 @@ export function Dashboard() {
   const [updating, setUpdating] = useState(false);
   const [cronData, setCronData] = useState<CronData | null>(null);
   const [showDisabledCron, setShowDisabledCron] = useState(false);
+  const [deletingCronId, setDeletingCronId] = useState<string | null>(null);
+  const [cronActionId, setCronActionId] = useState<string | null>(null);
+  const [syncHealth, setSyncHealth] = useState<"healthy" | "delayed">("healthy");
+  const [clearedWorkerIds, setClearedWorkerIds] = useState<string[]>([]);
+  const [stateTestMode, setStateTestMode] = useState(false);
+  const [stateTestValue, setStateTestValue] = useState<"idle" | "working" | "blocked" | "error" | "offline">("idle");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("giles-cleared-workers");
+      if (raw) setClearedWorkerIds(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!stateTestMode) return;
+    const states: Array<"idle" | "working" | "blocked" | "error" | "offline"> = ["idle", "working", "blocked", "error", "offline"];
+    let i = 0;
+    const timer = setInterval(() => {
+      i = (i + 1) % states.length;
+      setStateTestValue(states[i]);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [stateTestMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,8 +137,8 @@ export function Dashboard() {
     async function loadData() {
       try {
         const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes] = await Promise.all([
-          fetch(`/api/events?limit=${eventLimit}`, { cache: "no-store" }),
-          fetch(`/api/chats?limit=${eventLimit}`, { cache: "no-store" }),
+          fetch(`/api/events?limit=50`, { cache: "no-store" }),
+          fetch(`/api/chats?limit=50`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
           fetch(`/api/now-next`, { cache: "no-store" }),
           fetch(`/api/workers`, { cache: "no-store" }),
@@ -122,26 +147,26 @@ export function Dashboard() {
           fetch(`/api/cron`, { cache: "no-store" }),
         ]);
 
-        if (!eventsRes.ok || !chatsRes.ok || !tokensRes.ok || !nowNextRes.ok || !workersRes.ok || !versionRes.ok || !headroomRes.ok || !cronRes.ok) return;
-
-        const eventsData = (await eventsRes.json()) as { events?: EventRow[] };
-        const chatsData = (await chatsRes.json()) as { chats?: ChatRow[] };
-        const tokenData = (await tokensRes.json()) as TokenData;
-        const nowNextData = (await nowNextRes.json()) as NowNextData;
-        const workersData = (await workersRes.json()) as { workers?: WorkerData[] };
-        const versionData = (await versionRes.json()) as VersionInfo;
-        const headroomData = (await headroomRes.json()) as HeadroomData;
-        const cron = (await cronRes.json()) as CronData;
+        const allOk = [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes].every((r) => r.ok);
+        const eventsData = eventsRes.ok ? ((await eventsRes.json()) as { events?: EventRow[] }) : { events: [] };
+        const chatsData = chatsRes.ok ? ((await chatsRes.json()) as { chats?: ChatRow[] }) : { chats: [] };
+        const tokenData = tokensRes.ok ? ((await tokensRes.json()) as TokenData) : null;
+        const nowNextData = nowNextRes.ok ? ((await nowNextRes.json()) as NowNextData) : null;
+        const workersData = workersRes.ok ? ((await workersRes.json()) as { workers?: WorkerData[] }) : { workers: [] };
+        const versionData = versionRes.ok ? ((await versionRes.json()) as VersionInfo) : null;
+        const headroomData = headroomRes.ok ? ((await headroomRes.json()) as HeadroomData) : null;
+        const cron = cronRes.ok ? ((await cronRes.json()) as CronData) : null;
 
         if (!cancelled) {
           setEvents(eventsData.events ?? []);
           setChatRows(chatsData.chats ?? []);
-          setTokens(tokenData);
-          setNowNext(nowNextData);
+          if (tokenData) setTokens(tokenData);
+          if (nowNextData) setNowNext(nowNextData);
           setWorkers(workersData.workers ?? []);
-          setVersionInfo(versionData);
-          setHeadroom(headroomData);
-          setCronData(cron);
+          if (versionData) setVersionInfo(versionData);
+          if (headroomData) setHeadroom(headroomData);
+          if (cron) setCronData(cron);
+          setSyncHealth(allOk ? "healthy" : "delayed");
           setLastRefreshAt(Date.now());
         }
       } catch {}
@@ -170,19 +195,94 @@ export function Dashboard() {
     }
   };
 
+  const syncDashboard = () => {
+    window.location.reload();
+  };
+
+  const clearCompletedWorker = (workerId: string) => {
+    setClearedWorkerIds((prev) => {
+      const next = Array.from(new Set([...prev, workerId]));
+      try {
+        localStorage.setItem("giles-cleared-workers", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const runCronAction = async (jobId: string, op: "enable" | "disable" | "run") => {
+    if (!jobId || cronActionId) return;
+    setCronActionId(jobId);
+    try {
+      await fetch(`/api/cron?jobId=${encodeURIComponent(jobId)}&op=${op}`, { method: "PATCH" });
+      setCronData((prev) => {
+        if (!prev) return prev;
+        const jobs = prev.jobs.map((j) => (j.jobId === jobId ? { ...j, enabled: op === "enable" ? true : op === "disable" ? false : j.enabled } : j));
+        return {
+          ...prev,
+          jobs,
+          enabledCount: jobs.filter((j) => j.enabled).length,
+          disabledCount: jobs.filter((j) => !j.enabled).length,
+        };
+      });
+    } finally {
+      setCronActionId(null);
+    }
+  };
+
+  const removeCronJob = async (jobId: string) => {
+    if (!jobId || deletingCronId) return;
+    setDeletingCronId(jobId);
+    try {
+      await fetch(`/api/cron?jobId=${encodeURIComponent(jobId)}`, { method: "DELETE" });
+      setCronData((prev) => {
+        if (!prev) return prev;
+        const jobs = prev.jobs.filter((j) => j.jobId !== jobId);
+        return {
+          ...prev,
+          jobs,
+          enabledCount: jobs.filter((j) => j.enabled).length,
+          disabledCount: jobs.filter((j) => !j.enabled).length,
+          upcoming: prev.upcoming.filter((u) => jobs.some((j) => j.name === u.name)),
+        };
+      });
+    } finally {
+      setDeletingCronId(null);
+    }
+  };
+
   return (
     <div className="dashboard-shell">
       <header className="top-bar">
         <div className="top-left">
-          <PresenceOctopus botName="Giles" state={toPresenceState(nowNext?.status)} statusText={nowNext?.status ? `Live: ${nowNext.status}` : "Live: IDLE"} />
+          <PresenceOctopus botName="Giles" state={stateTestMode ? stateTestValue : toPresenceState(nowNext?.status)} />
         </div>
         <div className="top-title">AGENT DASHBOARD</div>
         <div className="top-right">
-          <Pill className="pill-flat">Build: {BUILD_STAMP}</Pill>
-          <Pill className="pill-flat">Last refresh: {formatRelativeTime(lastRefreshAt)}</Pill>
-          <Pill>OpenClaw {versionInfo?.current ?? "—"}</Pill>
-          <button className="eventlog-toggle" onClick={triggerUpdate}>
-            {updating ? "Updating…" : versionInfo?.updateAvailable ? `Update to ${versionInfo.latest}` : "Refresh version"}
+          <Pill className="pill-flat">
+            {HEADER_CONTEXT}: <span className={versionInfo?.current ? "tone-good" : "tone-warn"}>{versionInfo?.current ? "Connected" : "Connecting…"}</span>
+          </Pill>
+          <Pill className="pill-flat">
+            Last refresh: <span className="tone-good">{formatRelativeTime(lastRefreshAt)}</span>
+          </Pill>
+          <Pill className="pill-flat">
+            Data sync <span className={syncHealth === "healthy" ? "tone-good" : "tone-warn"}>{syncHealth === "healthy" ? "healthy" : "delayed"}</span>
+          </Pill>
+          <Pill className={versionInfo?.updateAvailable ? "pill-update-available" : "pill-update-ok"}>
+            {versionInfo?.updateAvailable
+              ? `Update available: ${versionInfo.latest}`
+              : `OpenClaw ${versionInfo?.current ?? "—"} · Up to date`}
+          </Pill>
+          {versionInfo?.updateAvailable ? (
+            <button className="eventlog-toggle update-cta" onClick={triggerUpdate}>
+              {updating ? "Updating…" : "Install update"}
+            </button>
+          ) : (
+            <button className="sync-icon-btn" onClick={syncDashboard} title="Sync: refresh dashboard + check latest version">
+              ↻
+            </button>
+          )}
+          <button className="eventlog-toggle" onClick={() => setStateTestMode((v) => !v)}>
+            {stateTestMode ? "Stop state cycle" : "Cycle states"}
           </button>
         </div>
       </header>
@@ -209,13 +309,12 @@ export function Dashboard() {
 
             <p className="now-plan">{nowNext?.plan_text ?? "This is my current plan. It updates as tasks/subagents progress."}</p>
 
+            <div className="now-projects-divider" />
+            <div className="now-projects-header">Projects</div>
             <div className="now-next-queue">
-              {nowNext?.queued?.length ? nowNext.queued.map((item, idx) => (
-                <div key={`${item.title}-${idx}`} className="list-item" style={{ padding: "6px 0" }}>
-                  {item.title}
-                  <span style={{ opacity: 0.65 }}> · {item.detail}</span>
-                </div>
-              )) : null}
+              <div className="list-item" style={{ padding: "6px 0" }}>
+                Project list coming next.
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -228,19 +327,19 @@ export function Dashboard() {
               <button className="eventlog-toggle" onClick={() => setEventView("chats")}>Chats</button>
               <button
                 className="eventlog-toggle"
-                onClick={() => setEventLimit(eventLimit === 10 ? 50 : 10)}
+                onClick={() => setEventLimit(eventLimit === 15 ? 50 : 15)}
               >
-                {eventLimit === 10 ? "Show more" : "Show less"}
+                {eventLimit === 15 ? "Show more" : "Show less"}
               </button>
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollableList>
+            <ScrollableList className={eventLimit === 50 ? "eventlog-expanded" : "eventlog-collapsed"}>
               {eventView === "all" ? (
                 events.length === 0 ? (
                   <p className="empty-state">No recent events.</p>
                 ) : (
-                  events.map((event, idx) => (
+                  events.slice(0, eventLimit).map((event, idx) => (
                     <div key={`${event.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line">
                       • {event.ts ? formatRelativeTime(event.ts) : "—"} · {event.type} {event.message ? ` · ${event.message}` : ""}
                     </div>
@@ -249,14 +348,14 @@ export function Dashboard() {
               ) : chatRows.length === 0 ? (
                 <p className="empty-state">No chat history found.</p>
               ) : (
-                chatRows.map((row, idx) => (
+                chatRows.slice(0, eventLimit).map((row, idx) => (
                   <div key={`${row.ts ?? "no-ts"}-${idx}`} className="list-item eventlog-line">
                     • {row.ts ? formatRelativeTime(row.ts) : "—"} · {row.role} · {row.text}
                   </div>
                 ))
               )}
             </ScrollableList>
-            <p className="eventlog-note">Default shows 10 rows; expand for 50.</p>
+            <p className="eventlog-note">Default shows 15 rows; expand for 50.</p>
           </CardContent>
         </Card>
 
@@ -284,17 +383,17 @@ export function Dashboard() {
               Last updated: <strong>{formatRelativeTime(tokens?.updated_at ?? null)}</strong>
             </div>
 
-            {tokens && (tokens.today_series.length || tokens.last7_series.length || tokens.last14_series.length) ? (
+            {tokens && (tokens.today_series.length || tokens.last7_series.length) ? (
               <div className="tokens-series-wrap">
-                <SeriesLine label="Today" values={tokens.today_series} />
+                <SeriesLine label="Hourly" values={tokens.today_series} />
+                <SeriesLine label="Daily" values={tokens.today_series} />
                 <SeriesLine label="Last 7 days" values={tokens.last7_series} />
-                <SeriesLine label="Last 14 days" values={tokens.last14_series} />
               </div>
             ) : (
               <div className="tokens-series-wrap">
-                <SeriesLine label="Today" values={[]} />
+                <SeriesLine label="Hourly" values={[]} />
+                <SeriesLine label="Daily" values={[]} />
                 <SeriesLine label="Last 7 days" values={[]} />
-                <SeriesLine label="Last 14 days" values={[]} />
               </div>
             )}
 
@@ -312,13 +411,13 @@ export function Dashboard() {
                 {headroom.windows.map((w, idx) => (
                   <div key={`${w.label}-${idx}`} className="headroom-row">
                     <div className="headroom-top">
-                      <span className="headroom-label">{w.label} window</span>
+                      <span className="headroom-label">{w.label}</span>
                       <span className={`headroom-value tone-${w.tone}`}>{w.leftPercent}% left</span>
                     </div>
                     <div className="headroom-track">
                       <div className={`headroom-fill tone-${w.tone}`} style={{ width: `${w.leftPercent}%` }} />
                     </div>
-                    <div className="headroom-meta">Reset {formatRelativeTime(w.resetAt)}</div>
+                    <div className="headroom-meta">Resets {formatResetTime(w.resetAt)}</div>
                   </div>
                 ))}
                 <div className="headroom-updated">Provider {headroom.provider} · Updated {formatRelativeTime(headroom.updatedAt)}</div>
@@ -336,21 +435,47 @@ export function Dashboard() {
           <CardContent>
             {workers.length ? (
               <div className="workers-list">
-                {workers.slice(0, 6).map((worker) => (
+                {workers
+                  .filter((worker) => !clearedWorkerIds.includes(worker.id))
+                  .slice(0, 6)
+                  .map((worker) => (
                   <div key={worker.id} className={`worker-row ${worker.isMain ? "worker-main" : "worker-sub"} state-${worker.state}`}>
-                    <span className="worker-dot" />
-                    <div className="worker-avatar-mini">🐙</div>
-                    <div className="worker-meta">
-                      <div className="worker-top">
-                        <span className="worker-name">{worker.name}{worker.isMain ? " (main)" : ""}</span>
-                        <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
-                        {worker.ageLabel ? <span className="worker-age-pill">{worker.ageLabel}</span> : null}
-                        {worker.model ? <span className="worker-model-pill">{worker.model}</span> : null}
+                    {worker.isMain ? (
+                      <div className="worker-avatar-live">
+                        <PresenceOctopus botName="Giles" state={toPresenceState(worker.state)} compact />
                       </div>
-                      <div className="worker-role">{worker.role}</div>
+                    ) : (
+                      <div className={`worker-avatar-mini worker-avatar-subagent state-${worker.state}`}>
+                        <SubagentFishAvatar />
+                      </div>
+                    )}
+                    <div className="worker-meta">
+                      {!worker.isMain ? (
+                        <div className="worker-top">
+                          <span className="worker-name">{worker.name}</span>
+                          <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
+                          {worker.ageLabel ? <span className="worker-age-pill">{worker.ageLabel}</span> : null}
+                          {worker.model ? <span className="worker-model-pill">{worker.model}</span> : null}
+                          <button
+                            className="worker-clear-btn"
+                            onClick={() => clearCompletedWorker(worker.id)}
+                            disabled={Math.max(0, Math.min(100, worker.progress ?? 0)) < 100}
+                            title={Math.max(0, Math.min(100, worker.progress ?? 0)) >= 100 ? "Clear completed task" : "Available when completed"}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="worker-top">
+                          <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
+                          {worker.ageLabel ? <span className="worker-age-pill">{worker.ageLabel}</span> : null}
+                          {worker.model ? <span className="worker-model-pill">{worker.model}</span> : null}
+                        </div>
+                      )}
+                      {!worker.isMain ? <div className="worker-role">{worker.role}</div> : null}
                       <div className="worker-task">{worker.task ?? worker.activity ?? "In progress"}</div>
                       <div className="worker-progress-track">
-                        <div className="worker-progress-fill" style={{ width: `${Math.max(0, Math.min(100, worker.progress ?? 0))}%` }} />
+                        <div className={`worker-progress-fill ${Math.max(0, Math.min(100, worker.progress ?? 0)) >= 100 ? "worker-progress-complete" : ""}`} style={{ width: `${Math.max(0, Math.min(100, worker.progress ?? 0))}%` }} />
                       </div>
                     </div>
                   </div>
@@ -381,7 +506,7 @@ export function Dashboard() {
               <div className="cron-upcoming-title">Upcoming (next 5)</div>
               {(cronData?.upcoming ?? []).length ? (
                 (cronData?.upcoming ?? []).map((u, idx) => (
-                  <div className="cron-upcoming-row" key={`${u.name}-${idx}`}>• {u.nextRunAt ? formatRelativeTime(u.nextRunAt) : "—"} · {u.name}</div>
+                  <div className="cron-upcoming-row" key={`${u.name}-${idx}`}>• {formatCronTime(u.nextRunAt)} · {u.name}</div>
                 ))
               ) : (
                 <div className="empty-state">No upcoming jobs.</div>
@@ -396,14 +521,21 @@ export function Dashboard() {
                     <div className="cron-job-top">
                       <div>
                         <div className="cron-job-name">{job.name}</div>
-                        <div className="cron-job-id">{job.jobId}</div>
+                        {job.model ? <div className="cron-job-model">Model: {job.model}</div> : null}
                       </div>
                       <div className="cron-job-badges">
                         <span className={`cron-badge ${job.lastOk ? "ok" : "fail"}`}>{job.lastOk ? "LAST OK" : "LAST FAIL"}</span>
                         <span className={`cron-badge ${job.enabled ? "enabled" : "disabled"}`}>{job.enabled ? "ENABLED" : "DISABLED"}</span>
+                        <button className="cron-run-btn" onClick={() => runCronAction(job.jobId, "run")} disabled={cronActionId === job.jobId}>Run now</button>
+                        <button className="cron-toggle-btn" onClick={() => runCronAction(job.jobId, job.enabled ? "disable" : "enable")} disabled={cronActionId === job.jobId}>
+                          {job.enabled ? "Disable" : "Enable"}
+                        </button>
+                        <button className="cron-remove-btn" onClick={() => removeCronJob(job.jobId)} disabled={deletingCronId === job.jobId}>
+                          {deletingCronId === job.jobId ? "Removing…" : "Remove"}
+                        </button>
                       </div>
                     </div>
-                    <div className="cron-job-meta">Schedule: {job.schedule} · Next: {formatRelativeTime(job.nextRunAt)} · Last: {formatRelativeTime(job.lastRunAt)}</div>
+                    <div className="cron-job-meta">Schedule: {formatCronSchedule(job.schedule)} · Next: {formatCronTime(job.nextRunAt)} · Last: {formatCronTime(job.lastRunAt)}</div>
                   </div>
                 ))}
             </div>
@@ -423,6 +555,79 @@ function toPresenceState(value?: string): "idle" | "working" | "blocked" | "erro
 function formatNum(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return Intl.NumberFormat().format(Math.round(value));
+}
+
+function formatCronTime(value?: string | null): string {
+  if (!value) return "—";
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) return "—";
+
+  const now = new Date();
+  const target = new Date(ts);
+  const time = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const dayDiff = Math.round((startOfTarget - startOfToday) / 86400000);
+
+  const deltaMs = ts - now.getTime();
+  const absMin = Math.round(Math.abs(deltaMs) / 60000);
+  const rel =
+    absMin < 1
+      ? "now"
+      : absMin < 60
+        ? `${absMin}m`
+        : `${Math.round(absMin / 60)}h`;
+
+  const dayLabel = dayDiff === 0 ? "Today" : dayDiff === 1 ? "Tomorrow" : dayDiff === -1 ? "Yesterday" : target.toLocaleDateString();
+  const relLabel = deltaMs >= 0 ? `in ${rel}` : `${rel} ago`;
+
+  return `${dayLabel} ${time} (${relLabel})`;
+}
+
+function formatCronSchedule(schedule: string): string {
+  if (!schedule) return "Schedule unavailable";
+  if (schedule.startsWith("at ")) {
+    return formatCronTime(schedule.slice(3));
+  }
+  return schedule;
+}
+
+function formatResetTime(value?: string | null): string {
+  if (!value) return "—";
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) return "—";
+
+  const now = Date.now();
+  const deltaMs = ts - now;
+  const absMin = Math.max(1, Math.round(Math.abs(deltaMs) / 60000));
+  const rel = absMin < 60 ? `${absMin}m` : `${Math.round(absMin / 60)}h`;
+  const relLabel = deltaMs >= 0 ? `in ${rel}` : `${rel} ago`;
+  const local = new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${local} (${relLabel})`;
+}
+
+function SubagentFishAvatar() {
+  return (
+    <div className="subagent-fish-wrap">
+      <svg viewBox="0 0 120 120" width="58" height="58" aria-hidden="true" className="subagent-fish-svg">
+        <ellipse cx="64" cy="62" rx="36" ry="26" fill="#ef4f83" />
+        <ellipse cx="78" cy="62" rx="18" ry="23" fill="#f06292" />
+        <polygon points="24,62 6,46 6,78" fill="#ef4f83" className="subagent-fish-tail" />
+        <polygon points="62,30 74,16 78,32" fill="#ef4f83" />
+        <polygon points="60,93 72,90 68,104" fill="#ef4f83" />
+        <circle cx="80" cy="58" r="11" fill="#f8fafc" />
+        <circle cx="82" cy="58" r="6" fill="#334155" />
+        <circle cx="84" cy="56" r="2" fill="#ffffff" />
+        <circle cx="56" cy="50" r="3" fill="#f48fb1" />
+        <circle cx="68" cy="76" r="3" fill="#f48fb1" />
+        <path d="M84 72 Q88 76 92 72" stroke="#f8bbd0" strokeWidth="2" fill="none" strokeLinecap="round" />
+      </svg>
+      <span className="subagent-bubble b1" />
+      <span className="subagent-bubble b2" />
+      <span className="subagent-bubble b3" />
+    </div>
+  );
 }
 
 function SeriesLine({ label, values }: { label: string; values: number[] }) {

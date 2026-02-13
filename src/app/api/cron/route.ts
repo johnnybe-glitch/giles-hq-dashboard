@@ -16,6 +16,7 @@ type CronJob = {
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastOk: boolean;
+  model: string | null;
 };
 
 export async function GET() {
@@ -24,15 +25,20 @@ export async function GET() {
     const parsed = JSON.parse(stdout);
     const jobsRaw = Array.isArray(parsed?.jobs) ? parsed.jobs : [];
 
-    const jobs: CronJob[] = jobsRaw.map((j: Record<string, unknown>, idx: number) => ({
-      jobId: String(j?.jobId ?? j?.id ?? `job-${idx}`),
-      name: String(j?.name ?? j?.payload?.message ?? `Job ${idx + 1}`),
-      enabled: Boolean(j?.enabled ?? false),
-      schedule: formatSchedule(j?.schedule),
-      nextRunAt: asIso(j?.nextRunAt ?? j?.nextAt),
-      lastRunAt: asIso(j?.lastRunAt ?? j?.lastAt),
-      lastOk: j?.lastOk !== false,
-    }));
+    const jobs: CronJob[] = jobsRaw.map((j: Record<string, unknown>, idx: number) => {
+      const payload = (j?.payload ?? null) as Record<string, unknown> | null;
+      const model = typeof payload?.model === "string" ? payload.model : null;
+      return {
+        jobId: String(j?.jobId ?? j?.id ?? `job-${idx}`),
+        name: String(j?.name ?? payload?.message ?? `Job ${idx + 1}`),
+        enabled: Boolean(j?.enabled ?? false),
+        schedule: formatSchedule(j?.schedule),
+        nextRunAt: asIso(j?.nextRunAt ?? j?.nextAt),
+        lastRunAt: asIso(j?.lastRunAt ?? j?.lastAt),
+        lastOk: j?.lastOk !== false,
+        model,
+      };
+    });
 
     const enabledCount = jobs.filter((j) => j.enabled).length;
     const disabledCount = jobs.length - enabledCount;
@@ -57,6 +63,37 @@ export async function GET() {
       jobs: [],
       updatedAt: new Date().toISOString(),
     });
+  }
+}
+
+export async function PATCH(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const jobId = searchParams.get("jobId");
+  const op = searchParams.get("op");
+  if (!jobId || !op) return NextResponse.json({ ok: false, error: "Missing jobId/op" }, { status: 400 });
+
+  try {
+    if (op === "enable") await execFileAsync(OPENCLAW_BIN, ["cron", "enable", jobId], { timeout: 12000 });
+    else if (op === "disable") await execFileAsync(OPENCLAW_BIN, ["cron", "disable", jobId], { timeout: 12000 });
+    else if (op === "run") await execFileAsync(OPENCLAW_BIN, ["cron", "run", jobId], { timeout: 12000 });
+    else return NextResponse.json({ ok: false, error: "Invalid op" }, { status: 400 });
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Operation failed" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const jobId = searchParams.get("jobId");
+  if (!jobId) return NextResponse.json({ ok: false, error: "Missing jobId" }, { status: 400 });
+
+  try {
+    await execFileAsync(OPENCLAW_BIN, ["cron", "rm", jobId], { timeout: 12000 });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Failed to remove job" }, { status: 500 });
   }
 }
 

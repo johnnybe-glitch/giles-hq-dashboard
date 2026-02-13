@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <header class="top-bar">
+        <div class="top-left">
+          <div class="presence-widget">
+            <div class="presence-avatar" aria-label="Presence avatar placeholder">
+              <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <path
+                  d="M20 26c0-8 5.8-14 12-14s12 6 12 14c0 6-3 12-12 12S20 32 20 26Z"
+                  stroke="rgba(255,255,255,0.88)"
+                  stroke-width="3"
+                />
+                <path
+                  d="M18 38c-3 3-3 8 0 11 3 3 8 3 11 0M46 38c3 3 3 8 0 11-3 3-8 3-11 0"
+                  stroke="rgba(255,255,255,0.55)"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <circle cx="27" cy="26" r="2.6" fill="rgba(255,255,255,0.92)" />
+                <circle cx="37" cy="26" r="2.6" fill="rgba(255,255,255,0.92)" />
+              </svg>
+            </div>
+            <div class="presence-copy">
+              <strong>Giles</strong>
+              <span class="chip">Presence widget placeholder</span>
+            </div>
+          </div>
+        </div>
+        <div class="top-title">AGENT DASHBOARD</div>
+        <div class="top-right">
+          <div class="pill on">
+            Local helper
+            <span>ON</span>
+          </div>
+          <div class="pill off">
+            Debug mode
+            <span>OFF</span>
+          </div>
+          <div class="pill">
+            OpenClaw v2026.2.9
+          </div>
+        </div>
+      </header>
+
+      <main class="card-grid">
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Overall</div>
+          </div>
+          <div class="card-content">
+            <div class="badge">Status summary</div>
+            <p class="empty-state">
+              Waiting for agent signal. Once live, key metrics and health
+              signals render here.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Workers</div>
+            <div class="badge">Main + subagents</div>
+          </div>
+          <div class="card-content">
+            <p class="empty-state">
+              No workers yet. Assign a task to spawn subagents.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Models in Use</div>
+          </div>
+          <div class="card-content">
+            <div class="chip">gpt-4o-mini (primary)</div>
+            <div class="chip">gpt-5.1-codex (escalation)</div>
+            <p class="empty-state">
+              Add routing rules to see live traffic here.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Local helper</div>
+            <div class="badge">Ollama</div>
+          </div>
+          <div class="card-content">
+            <p>Model: llama3.2:3b</p>
+            <p class="empty-state">
+              Waiting for next heartbeat. No recent helper usage.
+            </p>
+          </div>
+        </section>
+
+        <section class="card span-2">
+          <div class="card-header">
+            <div class="card-title">Now / Next</div>
+          </div>
+          <div class="card-content">
+            <div>
+              <strong>Current task</strong>
+              <p class="empty-state">
+                No active plan. Assign a mission to populate this section.
+              </p>
+            </div>
+            <div>
+              <strong>Next steps</strong>
+              <ul>
+                <li class="empty-state">Awaiting queued tasks.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Why am I blocked?</div>
+          </div>
+          <div class="card-content">
+            <p class="empty-state">
+              No blockers detected. Once a task flags an issue, details appear
+              here.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Tokens & Burn</div>
+          </div>
+          <div class="card-content">
+            <div class="sparkline-placeholder" aria-label="chart placeholder"></div>
+            <p class="empty-state">
+              No token snapshots yet. Start polling to populate charts.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">Headroom (OAuth)</div>
+          </div>
+          <div class="card-content">
+            <div class="progress-group">
+              <span>5h window</span>
+              <div class="progress-bar">
+                <span style="width: 45%"></span>
+              </div>
+              <span class="text-muted">45%</span>
+            </div>
+            <div class="progress-group">
+              <span>Long window</span>
+              <div class="progress-bar">
+                <span style="width: 22%"></span>
+              </div>
+              <span class="text-muted">22%</span>
+            </div>
+            <p class="empty-state">
+              Next reset info appears once OAuth windows are configured.
+            </p>
+          </div>
+        </section>
+
+        <section class="card timeline-card">
+          <div class="card-header">
+            <div class="card-title">Timeline (last 10)</div>
+            <button class="button-ghost">Show more</button>
+          </div>
+          <div class="card-content scrollable-list">
+            <p class="empty-state">No activity logged yet.</p>
+          </div>
+        </section>
+
+        <section class="card span-2">
+          <div class="card-header">
+            <div class="card-title">Event Log (Latest)</div>
+          </div>
+          <div class="card-content scrollable-list">
+            <p class="empty-state">No recent events.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
