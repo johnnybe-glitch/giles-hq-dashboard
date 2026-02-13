@@ -340,7 +340,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollableList className={eventLimit === 100 ? "eventlog-expanded" : "eventlog-collapsed"}>
+            <ScrollableList className={eventLimit === 100 ? "eventlog-max" : "eventlog-expanded"}>
               {eventView === "all" ? (
                 events.length === 0 ? (
                   <p className="empty-state">No recent events.</p>
@@ -361,7 +361,7 @@ export function Dashboard() {
                 ))
               )}
             </ScrollableList>
-            <p className="eventlog-note">Default shows 50 rows; expand for 100.</p>
+            <p className="eventlog-note">Default uses the larger view (50 rows); expand for 100 rows.</p>
           </CardContent>
         </Card>
 

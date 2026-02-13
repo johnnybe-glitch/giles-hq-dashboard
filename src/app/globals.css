@@ -885,6 +885,12 @@ body {
   max-height: 520px;
 }
 
+.eventlog-card .scrollable-list.eventlog-max {
+  height: 760px;
+  min-height: 760px;
+  max-height: 760px;
+}
+
 .eventlog-line {
   white-space: normal;
   overflow: visible;
