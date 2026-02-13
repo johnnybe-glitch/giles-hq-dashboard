@@ -948,8 +948,8 @@ body {
 }
 
 .cron-summary strong {
-  font-size: 30px;
-  line-height: 1;
+  font-size: 20px;
+  line-height: 1.1;
   color: rgba(243, 249, 255, 0.95);
 }
 
@@ -996,15 +996,17 @@ body {
 }
 
 .cron-job-name {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: rgba(242, 248, 255, 0.95);
+  line-height: 1.25;
 }
 
 .cron-job-id,
 .cron-job-meta {
-  font-size: 12px;
-  color: rgba(168, 185, 212, 0.82);
+  font-size: 13px;
+  color: rgba(182, 199, 224, 0.9);
+  line-height: 1.35;
 }
 
 .cron-job-badges {
