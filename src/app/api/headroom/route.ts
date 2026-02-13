@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || "/opt/homebrew/bin/openclaw";
 
 type WindowRow = {
   label: string;
@@ -17,7 +18,7 @@ type WindowRow = {
 
 export async function GET() {
   try {
-    const { stdout } = await execFileAsync("openclaw", ["status", "--json", "--usage"], { timeout: 12000 });
+    const { stdout } = await execFileAsync(OPENCLAW_BIN, ["status", "--json", "--usage"], { timeout: 12000 });
     const parsed = JSON.parse(stdout);
     const provider = parsed?.usage?.providers?.[0];
     const windows = Array.isArray(provider?.windows) ? provider.windows : [];

@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || "/opt/homebrew/bin/openclaw";
 
 type CronJob = {
   jobId: string;
@@ -19,7 +20,7 @@ type CronJob = {
 
 export async function GET() {
   try {
-    const { stdout } = await execFileAsync("openclaw", ["cron", "list", "--all", "--json"], { timeout: 12000 });
+    const { stdout } = await execFileAsync(OPENCLAW_BIN, ["cron", "list", "--all", "--json"], { timeout: 12000 });
     const parsed = JSON.parse(stdout);
     const jobsRaw = Array.isArray(parsed?.jobs) ? parsed.jobs : [];
 
