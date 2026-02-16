@@ -113,6 +113,7 @@ export function Dashboard() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [headroom, setHeadroom] = useState<HeadroomData | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [updateNote, setUpdateNote] = useState<string | null>(null);
   const [cronData, setCronData] = useState<CronData | null>(null);
   const [automationHealth, setAutomationHealth] = useState<AutomationHealthData | null>(null);
   const [showDisabledCron, setShowDisabledCron] = useState(false);
@@ -201,8 +202,27 @@ export function Dashboard() {
   const triggerUpdate = async () => {
     if (updating) return;
     setUpdating(true);
+    setUpdateNote(null);
     try {
-      await fetch(`/api/version`, { method: "POST" });
+      const res = await fetch(`/api/version`, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+
+      if (res.ok && body?.ok) {
+        setUpdateNote("Update completed. Refreshing version status…");
+      } else {
+        const detailRaw = body?.stderr || body?.error || "Update failed";
+        const detail = String(detailRaw).replace(/\s+/g, " ").slice(0, 180);
+        setUpdateNote(`Update failed: ${detail}`);
+      }
+
+      const fresh = await fetch(`/api/version`, { cache: "no-store" });
+      if (fresh.ok) {
+        const next = (await fresh.json()) as VersionInfo;
+        setVersionInfo(next);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Update request failed";
+      setUpdateNote(`Update failed: ${message}`);
     } finally {
       setUpdating(false);
     }
@@ -298,6 +318,7 @@ export function Dashboard() {
               ↻
             </button>
           )}
+          {updateNote ? <Pill className="pill-flat">{updateNote}</Pill> : null}
           <button className="eventlog-toggle" onClick={() => setStateTestMode((v) => !v)}>
             {stateTestMode ? "Stop state cycle" : "Cycle states"}
           </button>
