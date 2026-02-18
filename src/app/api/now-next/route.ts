@@ -48,12 +48,15 @@ export async function GET() {
   const now = buildNow(status, openclaw?.activeTask, latestUserTask, hasActiveWork);
   const queued = await buildQueued();
 
-  const model = status?.model ?? modelStatus?.primary ?? openclaw?.model ?? "gpt-5.3-codex";
-  const fallbacks = status?.fallbacks?.length
-    ? status.fallbacks
-    : modelStatus?.fallbacks?.length
-      ? modelStatus.fallbacks
-      : openclaw?.fallbacks ?? [];
+  // Prefer live session model over cached/default configs
+  const model = openclaw?.model ?? status?.model ?? modelStatus?.primary ?? "gpt-5.3-codex";
+  const fallbacks = openclaw?.fallbacks?.length
+    ? openclaw.fallbacks
+    : status?.fallbacks?.length
+      ? status.fallbacks
+      : modelStatus?.fallbacks?.length
+        ? modelStatus.fallbacks
+        : [];
   const localHelper =
     typeof status?.local_helper === "boolean"
       ? status.local_helper
