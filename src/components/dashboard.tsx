@@ -38,11 +38,11 @@ type WorkerData = {
   name: string;
   role: string;
   state: "idle" | "working" | "blocked" | "error" | "offline";
-  activity?: string;
-  task?: string;
-  progress?: number;
+  status_text?: string;
   model?: string;
-  ageLabel?: string;
+  last_seen_at?: string;
+  focus?: string;
+  last_error?: string;
   isMain?: boolean;
 };
 
@@ -154,16 +154,10 @@ export function Dashboard() {
   const [deletingCronId, setDeletingCronId] = useState<string | null>(null);
   const [cronActionId, setCronActionId] = useState<string | null>(null);
   const [syncHealth, setSyncHealth] = useState<"healthy" | "delayed">("healthy");
-  const [clearedWorkerIds, setClearedWorkerIds] = useState<string[]>([]);
   const [stateTestMode, setStateTestMode] = useState(false);
   const [stateTestValue, setStateTestValue] = useState<"idle" | "working" | "blocked" | "error" | "offline">("idle");
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("giles-cleared-workers");
-      if (raw) setClearedWorkerIds(JSON.parse(raw));
-    } catch {}
-  }, []);
+  // Workers roster is always visible; no local clearing state.
 
   useEffect(() => {
     if (!stateTestMode) return;
@@ -269,15 +263,6 @@ export function Dashboard() {
     window.location.reload();
   };
 
-  const clearCompletedWorker = (workerId: string) => {
-    setClearedWorkerIds((prev) => {
-      const next = Array.from(new Set([...prev, workerId]));
-      try {
-        localStorage.setItem("giles-cleared-workers", JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
 
   const runCronAction = async (jobId: string, op: "enable" | "disable" | "run") => {
     if (!jobId || cronActionId) return;
@@ -575,58 +560,30 @@ export function Dashboard() {
             <CardTitle>Workers</CardTitle>
           </CardHeader>
           <CardContent>
-            {workers.length ? (
-              <div className="workers-list">
-                {workers
-                  .filter((worker) => !clearedWorkerIds.includes(worker.id))
-                  .slice(0, 6)
-                  .map((worker) => (
-                  <div key={worker.id} className={`worker-row ${worker.isMain ? "worker-main" : "worker-sub"} state-${worker.state}`}>
-                    {worker.isMain ? (
-                      <div className="worker-avatar-live">
-                        <PresenceOctopus botName="Gilbert" state={toPresenceState(worker.state)} compact />
-                      </div>
-                    ) : (
-                      <div className={`worker-avatar-mini worker-avatar-subagent state-${worker.state}`}>
-                        <SubagentFishAvatar />
-                      </div>
-                    )}
-                    <div className="worker-meta">
-                      {!worker.isMain ? (
-                        <div className="worker-top">
-                          <span className="worker-name">{worker.name}</span>
-                          <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
-                          {worker.ageLabel ? <span className="worker-age-pill">{worker.ageLabel}</span> : null}
-                          {worker.model ? <span className="worker-model-pill">{worker.model}</span> : null}
-                          <button
-                            className="worker-clear-btn"
-                            onClick={() => clearCompletedWorker(worker.id)}
-                            disabled={Math.max(0, Math.min(100, worker.progress ?? 0)) < 100}
-                            title={Math.max(0, Math.min(100, worker.progress ?? 0)) >= 100 ? "Clear completed task" : "Available when completed"}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="worker-top">
-                          <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
-                          {worker.ageLabel ? <span className="worker-age-pill">{worker.ageLabel}</span> : null}
-                          {worker.model ? <span className="worker-model-pill">{worker.model}</span> : null}
-                        </div>
-                      )}
-                      {!worker.isMain ? <div className="worker-role">{worker.role}</div> : null}
-                      <div className="worker-task">{worker.task ?? worker.activity ?? "In progress"}</div>
-                      <div className="worker-progress-track">
-                        <div className={`worker-progress-fill ${Math.max(0, Math.min(100, worker.progress ?? 0)) >= 100 ? "worker-progress-complete" : ""}`} style={{ width: `${Math.max(0, Math.min(100, worker.progress ?? 0))}%` }} />
-                      </div>
-                    </div>
+            <div className="workers-list workers-roster">
+              {workers.slice(0, 4).map((worker) => (
+                <div key={worker.id} className={`worker-row worker-roster-row ${worker.isMain ? "worker-main" : "worker-sub"} state-${worker.state}`}>
+                  <div className="worker-avatar-live">
+                    <PresenceOctopus botName={worker.name} state={toPresenceState(worker.state)} compact />
                   </div>
-                ))}
-                {workers.length <= 1 ? <p className="empty-state">No subagents active.</p> : null}
-              </div>
-            ) : (
-              <p className="empty-state">No active workers. Assign a task to spawn subagents.</p>
-            )}
+                  <div className="worker-meta">
+                    <div className="worker-top">
+                      <span className="worker-name">{worker.name}</span>
+                      <span className="worker-state-pill">{worker.state.toUpperCase()}</span>
+                    </div>
+                    <div className="worker-role">{worker.role}</div>
+                    <div className="worker-submeta">
+                      <span>last seen: {formatRelativeTime(worker.last_seen_at ?? null)}</span>
+                      {worker.model ? <span> · model: {worker.model}</span> : null}
+                    </div>
+                    <div className="worker-task" title={worker.focus ?? "No active task"}>{worker.focus ?? "No active task"}</div>
+                    {worker.state === "error" && worker.last_error ? (
+                      <div className="worker-error-line" title={worker.last_error}>{worker.last_error}</div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
