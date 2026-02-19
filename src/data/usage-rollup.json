@@ -1,44 +1,34 @@
 {
-  "generatedAt": "2026-02-18T20:53:10.619Z",
+  "generatedAt": "2026-02-19T19:17:08.804Z",
   "dailyBudgetTokens": 80000,
   "days": [
     {
-      "date": "2026-02-18",
-      "totalTokens": 6634194,
-      "totalCost": 2.777182,
+      "date": "2026-02-19",
+      "totalTokens": 1105277,
+      "totalCost": 0.750338,
       "budgetTokens": 80000,
-      "budgetCost": 0.033489,
-      "sevenDayAvgTokens": 6634194,
-      "sevenDayAvgCost": 2.777182,
+      "budgetCost": 0.05431,
+      "sevenDayAvgTokens": 1105277,
+      "sevenDayAvgCost": 0.750338,
       "byModel": [
         {
-          "model": "gpt-5.1-codex",
-          "tokens": 4850734,
-          "cost": 2.01898825
-        },
-        {
           "model": "gpt-5.3-codex",
-          "tokens": 1257589,
-          "cost": 0.6968136
-        },
-        {
-          "model": "gpt-4o-mini",
-          "tokens": 525871,
-          "cost": 0.06137976
+          "tokens": 1105277,
+          "cost": 0.7503383999999997
         }
       ],
       "byChannel": [
         {
           "channel": "telegram",
-          "tokens": 6634194,
-          "cost": 2.777181609999999
+          "tokens": 1105277,
+          "cost": 0.7503383999999997
         }
       ],
       "topSessions": [
         {
           "sessionKey": "agent:main:main",
-          "tokens": 6634194,
-          "cost": 2.777181609999999,
+          "tokens": 1105277,
+          "cost": 0.7503383999999997,
           "channel": "telegram",
           "chatType": "direct"
         }

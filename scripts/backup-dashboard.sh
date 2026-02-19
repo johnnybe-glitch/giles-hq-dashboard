@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SRC="/Users/giles/Desktop/giles-hq-dashboard"
-OUT_DIR="/Users/giles/Desktop/giles-hq-dashboard-backups"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
+OUT_DIR="${BACKUP_OUT_DIR:-$HOME/.openclaw/backups/giles-hq-dashboard}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 NAME="giles-hq-dashboard-${STAMP}.tar.gz"
 

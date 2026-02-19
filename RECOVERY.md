@@ -4,7 +4,7 @@
 This project is protected by git history. To recover quickly:
 
 ```bash
-cd /Users/giles/Desktop/giles-hq-dashboard
+cd /Users/giles2/.openclaw/workspace/giles-hq-dashboard
 git log --oneline -n 20
 ```
 
@@ -18,12 +18,12 @@ git checkout <commit-or-tag>
 Backup script:
 
 ```bash
-/Users/giles/Desktop/giles-hq-dashboard/scripts/backup-dashboard.sh
+/Users/giles2/.openclaw/workspace/giles-hq-dashboard/scripts/backup-dashboard.sh
 ```
 
 Archives are stored in:
 
-`/Users/giles/Desktop/giles-hq-dashboard-backups`
+`$HOME/.openclaw/backups/giles-hq-dashboard`
 
 Policy:
 - Excludes `.next`, `node_modules`, `.git`
@@ -33,7 +33,7 @@ Policy:
 Install:
 
 ```bash
-bash /Users/giles/Desktop/giles-hq-dashboard/scripts/install-backup-launchd.sh
+bash /Users/giles2/.openclaw/workspace/giles-hq-dashboard/scripts/install-backup-launchd.sh
 ```
 
 Runs daily at 03:10 local time.
@@ -42,7 +42,7 @@ Runs daily at 03:10 local time.
 Add a private remote and push:
 
 ```bash
-cd /Users/giles/Desktop/giles-hq-dashboard
+cd /Users/giles2/.openclaw/workspace/giles-hq-dashboard
 git remote add origin <your-private-repo-url>
 git push -u origin main --tags
 ```

@@ -3,7 +3,8 @@ set -euo pipefail
 
 LABEL="com.giles.dashboard.backup"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
-SCRIPT="/Users/giles/Desktop/giles-hq-dashboard/scripts/backup-dashboard.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/backup-dashboard.sh"
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
