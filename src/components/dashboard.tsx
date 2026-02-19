@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { ScrollableList } from "./ui/scrollable-list";
 import { formatRelativeTime } from "@/lib/relative-time";
 
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 10_000;
 const HEADER_CONTEXT = "Gateway status";
 
 type EventRow = {
