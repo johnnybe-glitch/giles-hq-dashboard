@@ -101,6 +101,39 @@ type TokenData = {
   last14_series: number[];
 };
 
+type UsageBreakdownRow = {
+  label: string;
+  tokens: number;
+  cost: number;
+};
+
+type UsageSessionRow = {
+  sessionKey: string;
+  tokens: number;
+  cost: number;
+  channel: string;
+  chatType?: string;
+};
+
+type UsageDay = {
+  date: string;
+  totalTokens: number;
+  totalCost: number;
+  budgetTokens: number | null;
+  budgetCost: number | null;
+  sevenDayAvgTokens: number;
+  sevenDayAvgCost: number;
+  byModel: Array<{ model: string; tokens: number; cost: number }>;
+  byChannel: Array<{ channel: string; tokens: number; cost: number }>;
+  topSessions: UsageSessionRow[];
+};
+
+type UsageRollup = {
+  generatedAt: string | null;
+  dailyBudgetTokens: number | null;
+  days: UsageDay[];
+};
+
 export function Dashboard() {
   const [lastRefreshAt, setLastRefreshAt] = useState<number>(0);
   const [eventLimit, setEventLimit] = useState<50 | 100>(50);
@@ -112,6 +145,7 @@ export function Dashboard() {
   const [workers, setWorkers] = useState<WorkerData[]>([]);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [headroom, setHeadroom] = useState<HeadroomData | null>(null);
+  const [usageRollup, setUsageRollup] = useState<UsageRollup | null>(null);
   const [updating, setUpdating] = useState(false);
   const [updateNote, setUpdateNote] = useState<string | null>(null);
   const [cronData, setCronData] = useState<CronData | null>(null);
@@ -147,7 +181,7 @@ export function Dashboard() {
 
     async function loadData() {
       try {
-        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes] = await Promise.all([
+        const [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes, usageRes] = await Promise.all([
           fetch(`/api/events?limit=100`, { cache: "no-store" }),
           fetch(`/api/chats?limit=100`, { cache: "no-store" }),
           fetch(`/api/tokens`, { cache: "no-store" }),
@@ -157,9 +191,10 @@ export function Dashboard() {
           fetch(`/api/headroom`, { cache: "no-store" }),
           fetch(`/api/cron`, { cache: "no-store" }),
           fetch(`/api/automation-health`, { cache: "no-store" }),
+          fetch(`/api/usage`, { cache: "no-store" }),
         ]);
 
-        const allOk = [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes].every((r) => r.ok);
+        const allOk = [eventsRes, chatsRes, tokensRes, nowNextRes, workersRes, versionRes, headroomRes, cronRes, automationHealthRes, usageRes].every((r) => r.ok);
         const eventsData = eventsRes.ok ? ((await eventsRes.json()) as { events?: EventRow[] }) : { events: [] };
         const chatsData = chatsRes.ok ? ((await chatsRes.json()) as { chats?: ChatRow[] }) : { chats: [] };
         const tokenData = tokensRes.ok ? ((await tokensRes.json()) as TokenData) : null;
@@ -169,6 +204,7 @@ export function Dashboard() {
         const headroomData = headroomRes.ok ? ((await headroomRes.json()) as HeadroomData) : null;
         const cron = cronRes.ok ? ((await cronRes.json()) as CronData) : null;
         const automation = automationHealthRes.ok ? ((await automationHealthRes.json()) as AutomationHealthData) : null;
+        const usageData = usageRes.ok ? ((await usageRes.json()) as UsageRollup) : null;
 
         if (!cancelled) {
           setEvents(eventsData.events ?? []);
@@ -178,6 +214,7 @@ export function Dashboard() {
           setWorkers(workersData.workers ?? []);
           if (versionData) setVersionInfo(versionData);
           if (headroomData) setHeadroom(headroomData);
+          if (usageData) setUsageRollup(usageData);
           if (cron) setCronData(cron);
           if (automation) setAutomationHealth(automation);
           setSyncHealth(allOk ? "healthy" : "delayed");
@@ -286,6 +323,17 @@ export function Dashboard() {
   const visibleCronJobs = (cronData?.jobs ?? []).filter((j) => (showDisabledCron ? true : j.enabled));
   const maintenanceCronJobs = visibleCronJobs.filter(isMaintenanceCronJob);
   const operationalCronJobs = visibleCronJobs.filter((j) => !isMaintenanceCronJob(j));
+
+  const usageDays = usageRollup?.days ?? [];
+  const latestUsage = usageDays.length ? usageDays[usageDays.length - 1] : null;
+  const usageTrend = usageDays.slice(-14);
+  const headroomWindow = pickHeadroomWindow(headroom);
+  const budgetTokens = latestUsage?.budgetTokens ?? usageRollup?.dailyBudgetTokens ?? null;
+  const deltaVsBudget = latestUsage && budgetTokens ? latestUsage.totalTokens - budgetTokens : null;
+  const deltaVsAvg = latestUsage ? latestUsage.totalTokens - latestUsage.sevenDayAvgTokens : null;
+  const headroomUsedPercent = headroomWindow?.usedPercent ?? null;
+  const headroomLeftPercent = headroomWindow?.leftPercent ?? null;
+  const headroomResetLabel = headroomWindow?.resetAt ?? headroom?.updatedAt ?? null;
 
   return (
     <div className="dashboard-shell">
@@ -399,43 +447,99 @@ export function Dashboard() {
 
         <Card className="tokens-card">
           <CardHeader>
-            <CardTitle>Tokens & Burn</CardTitle>
+            <CardTitle>Usage & Burn</CardTitle>
+            <div className="usage-updated">
+              Updated {formatRelativeTime(usageRollup?.generatedAt ?? null)}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="tokens-metrics">
-              <div className="tokens-metric">
-                <div className="tokens-metric-label">Tokens today</div>
-                <div className="tokens-metric-value">{formatNum(tokens?.tokens_today)}</div>
-              </div>
-              <div className="tokens-metric">
-                <div className="tokens-metric-label">Burn rate (tokens/hour)</div>
-                <div className="tokens-metric-value">{formatNum(tokens?.burn_rate_per_hour)}</div>
-              </div>
-              <div className="tokens-metric">
-                <div className="tokens-metric-label">Snapshots</div>
-                <div className="tokens-metric-value">{formatNum(tokens?.snapshots_count)}</div>
-              </div>
-            </div>
+            {latestUsage ? (
+              <>
+                <div className="usage-metrics">
+                  <div>
+                    <div className="usage-metric-label">Today</div>
+                    <div className="usage-metric-value">{formatCompact(latestUsage.totalTokens)} tokens</div>
+                    {deltaVsAvg !== null ? (
+                      <div className={`usage-metric-delta ${deltaVsAvg >= 0 ? "delta-up" : "delta-down"}`}>
+                        {deltaVsAvg >= 0 ? "+" : ""}
+                        {formatCompact(Math.abs(deltaVsAvg))} vs 7d avg
+                      </div>
+                    ) : null}
+                  </div>
+                  <div>
+                    <div className="usage-metric-label">Budget (est)</div>
+                    <div className="usage-metric-value">
+                      {budgetTokens ? `${formatCompact(budgetTokens)} tokens` : "—"}
+                    </div>
+                    {deltaVsBudget !== null ? (
+                      <div className={`usage-metric-delta ${deltaVsBudget > 0 ? "delta-up" : "delta-down"}`}>
+                        {deltaVsBudget > 0 ? "+" : ""}
+                        {formatCompact(Math.abs(deltaVsBudget))} vs est. budget
+                      </div>
+                    ) : null}
+                  </div>
+                  <div>
+                    <div className="usage-metric-label">Headroom (Codex)</div>
+                    <div className="usage-metric-value">
+                      {headroomUsedPercent !== null ? `${headroomUsedPercent}% used` : "—"}
+                    </div>
+                    <div className="usage-metric-delta">
+                      {headroomLeftPercent !== null ? `${headroomLeftPercent}% left` : ""}
+                      {headroomResetLabel ? ` · resets ${formatResetTime(headroomResetLabel)}` : ""}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="tokens-updated">
-              Last updated: <strong>{formatRelativeTime(tokens?.updated_at ?? null)}</strong>
-            </div>
+                <UsageTrendChart rows={usageTrend} budgetTokens={budgetTokens} headroomWindow={headroomWindow} />
 
-            {tokens && (tokens.today_series.length || tokens.last7_series.length) ? (
-              <div className="tokens-series-wrap">
-                <SeriesLine label="Hourly" values={tokens.today_series} />
-                <SeriesLine label="Daily" values={tokens.today_series} />
-                <SeriesLine label="Last 7 days" values={tokens.last7_series} />
-              </div>
+                <div className="usage-breakdowns">
+                  <BreakdownList
+                    title="Models"
+                    rows={latestUsage.byModel.map((row) => ({
+                      label: row.model,
+                      tokens: row.tokens,
+                      cost: row.cost,
+                    }))}
+                  />
+                  <BreakdownList
+                    title="Channels"
+                    rows={latestUsage.byChannel.map((row) => ({
+                      label: row.channel,
+                      tokens: row.tokens,
+                      cost: row.cost,
+                    }))}
+                  />
+                </div>
+
+                <TopSessionsTable sessions={latestUsage.topSessions} />
+              </>
             ) : (
-              <div className="tokens-series-wrap">
-                <SeriesLine label="Hourly" values={[]} />
-                <SeriesLine label="Daily" values={[]} />
-                <SeriesLine label="Last 7 days" values={[]} />
-              </div>
+              <>
+                <div className="tokens-metrics">
+                  <div className="tokens-metric">
+                    <div className="tokens-metric-label">Tokens today</div>
+                    <div className="tokens-metric-value">{formatNum(tokens?.tokens_today)}</div>
+                  </div>
+                  <div className="tokens-metric">
+                    <div className="tokens-metric-label">Burn rate (tokens/hour)</div>
+                    <div className="tokens-metric-value">{formatNum(tokens?.burn_rate_per_hour)}</div>
+                  </div>
+                  <div className="tokens-metric">
+                    <div className="tokens-metric-label">Snapshots</div>
+                    <div className="tokens-metric-value">{formatNum(tokens?.snapshots_count)}</div>
+                  </div>
+                </div>
+                <div className="tokens-updated">
+                  Last updated: <strong>{formatRelativeTime(tokens?.updated_at ?? null)}</strong>
+                </div>
+                <div className="tokens-series-wrap">
+                  <SeriesLine label="Hourly" values={tokens?.today_series ?? []} />
+                  <SeriesLine label="Daily" values={tokens?.today_series ?? []} />
+                  <SeriesLine label="Last 7 days" values={tokens?.last7_series ?? []} />
+                </div>
+                <p className="tokens-note">Charts populate once we collect snapshots. (No Zapier needed.)</p>
+              </>
             )}
-
-            <p className="tokens-note">Charts populate once we collect snapshots. (No Zapier needed.)</p>
           </CardContent>
         </Card>
 
@@ -770,4 +874,141 @@ function SeriesLine({ label, values }: { label: string; values: number[] }) {
       </div>
     </div>
   );
+}
+
+function UsageTrendChart({ rows, budgetTokens, headroomWindow }: { rows: UsageDay[]; budgetTokens: number | null | undefined; headroomWindow?: HeadroomData["windows"][number] | null }) {
+  if (!rows.length) {
+    return <div className="empty-state">Usage data will appear after the first snapshot.</div>;
+  }
+
+  if (rows.length <= 1) {
+    const today = rows[0];
+    const percent = headroomWindow?.usedPercent ?? (budgetTokens && today?.totalTokens ? (today.totalTokens / budgetTokens) * 100 : null);
+
+    return (
+      <div className="usage-trend usage-trend-empty">
+        <div className="usage-trend-empty-text">
+          Need at least two days of history for the line chart. Today: {formatCompact(today?.totalTokens ?? 0)} tokens.
+        </div>
+        {percent !== null ? (
+          <>
+            <div className="usage-progress">
+              <div className="usage-progress-fill" style={{ width: `${Math.max(2, Math.min(percent, 100))}%` }} />
+            </div>
+            <div className="usage-progress-meta">
+              {headroomWindow
+                ? `${percent.toFixed(1)}% of Codex headroom used · resets ${formatResetTime(headroomWindow.resetAt)}`
+                : `${percent.toFixed(1)}% of estimated budget consumed`}
+            </div>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  const totals = rows.map((r) => r.totalTokens);
+  const avgs = rows.map((r) => r.sevenDayAvgTokens);
+  const budgets = rows.map((r) => r.budgetTokens ?? budgetTokens ?? null);
+  const maxValue = Math.max(...totals, ...avgs, ...(budgets.filter((v): v is number => typeof v === "number")), 1);
+
+  const toPoints = (values: Array<number | null>) =>
+    values
+      .map((value, index) => {
+        const safeValue = typeof value === "number" && value >= 0 ? value : null;
+        const x = (index / Math.max(values.length - 1, 1)) * 100;
+        const y = safeValue === null ? null : 100 - (safeValue / maxValue) * 100;
+        return y === null ? null : `${x},${y}`;
+      })
+      .filter(Boolean)
+      .join(" ");
+
+  const totalPoints = toPoints(totals);
+  const avgPoints = toPoints(avgs);
+  const budgetPoints = budgets.some((b) => typeof b === "number") ? toPoints(budgets) : null;
+
+  return (
+    <div className="usage-trend">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="usage-trend-svg">
+        {budgetPoints ? <polyline className="usage-line usage-line-budget" points={budgetPoints} /> : null}
+        <polyline className="usage-line usage-line-avg" points={avgPoints} />
+        <polyline className="usage-line usage-line-total" points={totalPoints} />
+      </svg>
+      <div className="usage-trend-footer">
+        <span>{rows[0]?.date}</span>
+        <span>{rows[rows.length - 1]?.date}</span>
+      </div>
+    </div>
+  );
+}
+
+function BreakdownList({ title, rows }: { title: string; rows: UsageBreakdownRow[] }) {
+  if (!rows.length) {
+    return (
+      <div className="breakdown-list">
+        <div className="breakdown-title">{title}</div>
+        <div className="empty-state">No data yet.</div>
+      </div>
+    );
+  }
+
+  const total = rows.reduce((sum, row) => sum + row.tokens, 0);
+  return (
+    <div className="breakdown-list">
+      <div className="breakdown-title">{title}</div>
+      {rows.slice(0, 4).map((row) => (
+        <div className="breakdown-row" key={row.label}>
+          <div className="breakdown-meta">
+            <div className="breakdown-label">{row.label}</div>
+            <div className="breakdown-subtext">{formatCurrency(row.cost)}</div>
+          </div>
+          <div className="breakdown-bar">
+            <div className="breakdown-bar-fill" style={{ width: `${total ? (row.tokens / total) * 100 : 0}%` }} />
+          </div>
+          <div className="breakdown-value">{formatCompact(row.tokens)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopSessionsTable({ sessions }: { sessions: UsageSessionRow[] }) {
+  if (!sessions.length) {
+    return <div className="empty-state">No session breakdown yet.</div>;
+  }
+
+  return (
+    <div className="sessions-table">
+      <div className="sessions-title">Top sessions today</div>
+      <div className="sessions-rows">
+        {sessions.map((session) => (
+          <div className="session-row" key={session.sessionKey}>
+            <div className="session-meta-block">
+              <div className="session-id">{session.sessionKey.replace(/^agent:/, "")}</div>
+              <div className="session-meta-text">{session.channel} · {session.chatType ?? "direct"}</div>
+            </div>
+            <div className="session-tokens">{formatCompact(session.tokens)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function pickHeadroomWindow(headroom?: HeadroomData | null) {
+  const windows = headroom?.windows ?? [];
+  if (!windows.length) return null;
+  const dayWindow = windows.find((w) => /day/i.test(w.label));
+  if (dayWindow) return dayWindow;
+  return windows[windows.length - 1];
+}
+
+function formatCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const digits = value >= 1 ? 2 : 4;
+  return `$${value.toFixed(digits)}`;
 }

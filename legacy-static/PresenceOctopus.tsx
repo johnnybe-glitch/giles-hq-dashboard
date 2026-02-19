@@ -85,10 +85,9 @@ export default function PresenceOctopus({
                     // used by CSS for glow
                     ["--octo-glow" as any]: meta.glow,
                 } as React.CSSProperties}
-                aria-label={${botName} presence ${state}}>
+                aria-label={`${botName} presence ${state}`}>
                 <div className="presence-glow" />
-                {/* Add SVG octopus here */} 
-                <Bubbles />
+                {/* Add SVG octopus here */}
             </div>
             <div className="presence-meta">
                 <div className="presence-top">

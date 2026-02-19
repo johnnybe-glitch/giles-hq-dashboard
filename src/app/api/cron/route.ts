@@ -32,7 +32,7 @@ export async function GET() {
         jobId: String(j?.jobId ?? j?.id ?? `job-${idx}`),
         name: String(j?.name ?? payload?.message ?? `Job ${idx + 1}`),
         enabled: Boolean(j?.enabled ?? false),
-        schedule: formatSchedule(j?.schedule),
+        schedule: formatSchedule(j?.schedule ?? null),
         nextRunAt: asIso(j?.nextRunAt ?? j?.nextAt),
         lastRunAt: asIso(j?.lastRunAt ?? j?.lastAt),
         lastOk: j?.lastOk !== false,
@@ -103,8 +103,17 @@ function asIso(v: unknown): string | null {
   return null;
 }
 
-function formatSchedule(s: Record<string, unknown> | null | undefined): string {
-  if (!s || typeof s !== "object") return "Schedule unavailable";
+type ScheduleLike = {
+  kind?: string;
+  expr?: string;
+  tz?: string;
+  everyMs?: number | string;
+  at?: string;
+};
+
+function formatSchedule(value: unknown): string {
+  if (!value || typeof value !== "object") return "Schedule unavailable";
+  const s = value as ScheduleLike;
   if (s.kind === "cron" && s.expr) return `${s.expr}${s.tz ? ` (${s.tz})` : ""}`;
   if (s.kind === "every" && s.everyMs) return `every ${Math.round(Number(s.everyMs) / 60000)}m`;
   if (s.kind === "at" && s.at) return `at ${s.at}`;

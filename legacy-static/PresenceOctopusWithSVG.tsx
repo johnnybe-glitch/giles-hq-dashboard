@@ -1,6 +1,18 @@
 "use client";
 
 import * as React from "react";
+import Bubbles from "./Bubbles";
+
+const OctopusSVG = () => (
+    <svg viewBox="0 0 120 120" width={48} height={48} role="img" aria-hidden="true">
+        <circle cx="60" cy="60" r="40" fill="#9333ea" opacity={0.8} />
+        <circle cx="45" cy="55" r="5" fill="#fff" />
+        <circle cx="75" cy="55" r="5" fill="#fff" />
+        <circle cx="45" cy="55" r="2.5" fill="#1f2937" />
+        <circle cx="75" cy="55" r="2.5" fill="#1f2937" />
+        <path d="M30 80 C45 95, 75 95, 90 80" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+    </svg>
+);
 
 export type PresenceState = "idle" | "working" | "blocked" | "error" | "offline";
 
@@ -41,7 +53,7 @@ export default function PresenceOctopus({ botName = "Giles", state, statusText, 
                 style={{
                     ["--octo-glow" as any]: meta.glow,
                 } as React.CSSProperties}
-                aria-label={${botName} presence ${state}}>
+                aria-label={`${botName} presence ${state}`}>
                 <div className="presence-glow" />
                 <OctopusSVG />
                 {state === "working" && <Bubbles />}
