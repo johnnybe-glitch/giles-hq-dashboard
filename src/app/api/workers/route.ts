@@ -27,6 +27,8 @@ type WorkerRow = {
   last_seen_at?: string;
   focus?: string;
   last_error?: string;
+  last_command?: string;
+  duration_seconds?: number;
   isMain?: boolean;
 };
 
@@ -42,6 +44,8 @@ type WorkerFile = {
     last_seen_at?: string;
     focus?: string;
     last_error?: string;
+    last_command?: string;
+    duration_seconds?: number;
   }>;
 };
 
@@ -76,6 +80,8 @@ async function readWorkersFromRuntime(): Promise<WorkerRow[]> {
         last_seen_at: normalizeIso(w.last_seen_at),
         focus: normalizeText(w.focus),
         last_error: normalizeText(w.last_error),
+        last_command: normalizeText(w.last_command),
+        duration_seconds: normalizeSeconds(w.duration_seconds),
         isMain: String(w.id ?? "").toLowerCase() === "main",
       }));
       return rows.filter((r) => r.id);
@@ -101,7 +107,9 @@ function mergeRoster(input: WorkerRow[]): WorkerRow[] {
       model: live?.model,
       last_seen_at: live?.last_seen_at,
       focus: live?.focus || "No active task",
-      last_error: state === "error" ? live?.last_error : undefined,
+      last_error: state === "error" || state === "blocked" ? live?.last_error : undefined,
+      last_command: live?.last_command,
+      duration_seconds: live?.duration_seconds,
       isMain: base.id === "main",
     };
   });
@@ -123,4 +131,9 @@ function normalizeIso(value?: string): string | undefined {
   if (!v) return undefined;
   const ts = Date.parse(v);
   return Number.isNaN(ts) ? undefined : new Date(ts).toISOString();
+}
+
+function normalizeSeconds(value?: number): number | undefined {
+  if (typeof value !== "number" || Number.isNaN(value) || value < 0) return undefined;
+  return Math.round(value);
 }

@@ -43,6 +43,8 @@ type WorkerData = {
   last_seen_at?: string;
   focus?: string;
   last_error?: string;
+  last_command?: string;
+  duration_seconds?: number;
   isMain?: boolean;
 };
 
@@ -577,7 +579,11 @@ export function Dashboard() {
                       {worker.model ? <span> · model: {worker.model}</span> : null}
                     </div>
                     <div className="worker-task" title={worker.focus ?? "No active task"}>{worker.focus ?? "No active task"}</div>
-                    {worker.state === "error" && worker.last_error ? (
+                    <div className="worker-submeta">
+                      {worker.last_command ? <span>last command: {worker.last_command}</span> : <span>last command: —</span>}
+                      <span> · duration: {typeof worker.duration_seconds === "number" ? `${worker.duration_seconds}s` : "—"}</span>
+                    </div>
+                    {(worker.state === "error" || worker.state === "blocked") && worker.last_error ? (
                       <div className="worker-error-line" title={worker.last_error}>{worker.last_error}</div>
                     ) : null}
                   </div>
