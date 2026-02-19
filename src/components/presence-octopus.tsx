@@ -69,7 +69,7 @@ const STATE_META: Record<
 };
 
 export function PresenceOctopus({
-  botName = "Giles",
+  botName = "Gilbert",
   state,
   statusText,
   lastErrorSnippet,

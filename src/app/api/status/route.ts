@@ -90,7 +90,7 @@ export async function GET() {
   });
 
   const payload = {
-    bot_name: presence?.bot_name ?? status?.bot_name ?? "Giles",
+    bot_name: presence?.bot_name ?? status?.bot_name ?? "Gilbert",
     computed_state: state,
     computed_why: computedWhy,
     last_heartbeat_at: lastHeartbeatIso,
@@ -234,7 +234,7 @@ function computeWhy(
 
 function buildOfflinePayload(reason: string) {
   return {
-    bot_name: "Giles",
+    bot_name: "Gilbert",
     computed_state: "offline" as const,
     computed_why: reason,
     last_heartbeat_at: null,

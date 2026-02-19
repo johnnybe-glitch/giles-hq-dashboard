@@ -339,7 +339,7 @@ export function Dashboard() {
     <div className="dashboard-shell">
       <header className="top-bar">
         <div className="top-left">
-          <PresenceOctopus botName="Giles" state={stateTestMode ? stateTestValue : toPresenceState(nowNext?.status)} />
+          <PresenceOctopus botName="Gilbert" state={stateTestMode ? stateTestValue : toPresenceState(nowNext?.status)} />
         </div>
         <div className="top-title">AGENT DASHBOARD</div>
         <div className="top-right">
@@ -584,7 +584,7 @@ export function Dashboard() {
                   <div key={worker.id} className={`worker-row ${worker.isMain ? "worker-main" : "worker-sub"} state-${worker.state}`}>
                     {worker.isMain ? (
                       <div className="worker-avatar-live">
-                        <PresenceOctopus botName="Giles" state={toPresenceState(worker.state)} compact />
+                        <PresenceOctopus botName="Gilbert" state={toPresenceState(worker.state)} compact />
                       </div>
                     ) : (
                       <div className={`worker-avatar-mini worker-avatar-subagent state-${worker.state}`}>
