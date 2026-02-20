@@ -466,23 +466,21 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle>Usage & Burn</CardTitle>
             <div className="usage-updated">
-              Data generated {formatRelativeTime(usageRollup?.generatedAt ?? null)} · Dashboard polled {formatRelativeTime(lastRefreshAt)}
+              Data {formatRelativeTime(usageRollup?.generatedAt ?? null)} · Polled {formatRelativeTime(lastRefreshAt)}
             </div>
-            <div className="usage-updated" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <span className={usageFreshness.tone === "good" ? "tone-good" : "tone-warn"}>
-                {usageFreshness.label}
-              </span>
-              <button className="eventlog-toggle" onClick={refreshUsageNow} disabled={usageRefreshing}>
-                {usageRefreshing ? "Refreshing…" : "Refresh usage now"}
+            <div className="usage-toolbar">
+              <span className={usageFreshness.tone === "good" ? "tone-good" : "tone-warn"}>{usageFreshness.label}</span>
+              <button className="usage-refresh-btn" onClick={refreshUsageNow} disabled={usageRefreshing} title="Refresh usage now">
+                {usageRefreshing ? "…" : "↻"}
               </button>
-              {usageRefreshNote ? <span>{usageRefreshNote}</span> : null}
+              {usageRefreshNote ? <span className="usage-toolbar-note">{usageRefreshNote}</span> : null}
             </div>
           </CardHeader>
           <CardContent>
             {latestUsage ? (
               <>
                 <div className="usage-metrics">
-                  <div>
+                  <div className="usage-metric-tile">
                     <div className="usage-metric-label">Tokens today</div>
                     <div className="usage-metric-value">{formatCompact(latestUsage.totalTokens)} tokens</div>
                     {deltaVsAvg !== null ? (
@@ -492,7 +490,7 @@ export function Dashboard() {
                       </div>
                     ) : null}
                   </div>
-                  <div>
+                  <div className="usage-metric-tile">
                     <div className="usage-metric-label">Burn rate now</div>
                     <div className="usage-metric-value">
                       {tokens?.burn_rate_per_hour ? `${formatCompact(tokens.burn_rate_per_hour)} / hr` : "—"}
@@ -501,12 +499,12 @@ export function Dashboard() {
                       {projectedEodTokens ? `proj. EOD ${formatCompact(projectedEodTokens)} tokens` : "Projection unavailable"}
                     </div>
                   </div>
-                  <div>
+                  <div className="usage-metric-tile">
                     <div className="usage-metric-label">Usage mode</div>
                     <div className="usage-metric-value">{usageBand.label}</div>
                     <div className="usage-metric-delta">{usageBand.detail}</div>
                   </div>
-                  <div>
+                  <div className="usage-metric-tile">
                     <div className="usage-metric-label">Headroom (Codex)</div>
                     <div className="usage-metric-value">
                       {headroomUsedPercent !== null ? `${headroomUsedPercent}% used` : "—"}
@@ -539,7 +537,6 @@ export function Dashboard() {
                   />
                 </div>
 
-                <TopSessionsTable sessions={latestUsage.topSessions} />
               </>
             ) : (
               <>
@@ -971,29 +968,6 @@ function BreakdownList({ title, rows }: { title: string; rows: UsageBreakdownRow
           <div className="breakdown-value">{formatCompact(row.tokens)}</div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function TopSessionsTable({ sessions }: { sessions: UsageSessionRow[] }) {
-  if (!sessions.length) {
-    return <div className="empty-state">No session breakdown yet.</div>;
-  }
-
-  return (
-    <div className="sessions-table">
-      <div className="sessions-title">Top sessions today</div>
-      <div className="sessions-rows">
-        {sessions.map((session) => (
-          <div className="session-row" key={session.sessionKey}>
-            <div className="session-meta-block">
-              <div className="session-id">{session.sessionKey.replace(/^agent:/, "")}</div>
-              <div className="session-meta-text">{session.channel} · {session.chatType ?? "direct"}</div>
-            </div>
-            <div className="session-tokens">{formatCompact(session.tokens)}</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

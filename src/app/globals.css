@@ -406,37 +406,73 @@ body {
 }
 
 .usage-updated {
-  font-size: 13px;
-  color: rgba(177, 194, 220, 0.82);
+  font-size: 12px;
+  color: rgba(177, 194, 220, 0.78);
+}
+
+.usage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: -2px;
+}
+
+.usage-refresh-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(226, 232, 240, 0.95);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.usage-refresh-btn:hover {
+  border-color: rgba(129, 140, 248, 0.55);
+}
+
+.usage-toolbar-note {
+  font-size: 12px;
+  color: rgba(173, 190, 214, 0.75);
 }
 
 .usage-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-  padding-bottom: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  padding-bottom: 2px;
+}
+
+.usage-metric-tile {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(8, 14, 28, 0.55);
+  padding: 10px 12px;
 }
 
 .usage-metric-label {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(182, 198, 224, 0.75);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .usage-metric-value {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: rgba(241, 247, 255, 0.95);
   line-height: 1.1;
+  margin-top: 2px;
 }
 
 .usage-metric-delta {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(173, 190, 214, 0.78);
   margin-top: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .delta-up {
@@ -486,7 +522,7 @@ body {
 
 .usage-trend-svg {
   width: 100%;
-  height: 160px;
+  height: 120px;
   background: linear-gradient(180deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.02));
   border-radius: 10px;
 }
@@ -500,7 +536,7 @@ body {
 
 .usage-line-total {
   stroke: rgba(59, 130, 246, 0.95);
-  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.4));
+  
 }
 
 .usage-line-avg {
@@ -525,13 +561,13 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .breakdown-list {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  padding: 12px;
+  padding: 10px;
   background: rgba(7, 12, 24, 0.6);
 }
 
@@ -574,7 +610,7 @@ body {
 .breakdown-bar {
   grid-column: 1 / -1;
   width: 100%;
-  height: 6px;
+  height: 5px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
@@ -596,7 +632,7 @@ body {
   margin-top: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  padding: 12px;
+  padding: 10px;
   background: rgba(6, 10, 22, 0.65);
   display: grid;
   gap: 8px;
@@ -1206,7 +1242,7 @@ body {
   z-index: 1;
 }
 
-.subagent-bubble.b1 { width: 6px; height: 6px; right: 2px; top: 34px; animation-delay: 0s; }
+.subagent-bubble.b1 { width: 6px; height: 5px; right: 2px; top: 34px; animation-delay: 0s; }
 .subagent-bubble.b2 { width: 8px; height: 8px; right: -2px; top: 26px; animation-delay: 0.45s; }
 .subagent-bubble.b3 { width: 5px; height: 5px; right: 6px; top: 20px; animation-delay: 0.9s; }
 
@@ -1656,3 +1692,6 @@ body {
   opacity: 0.65;
   cursor: default;
 }
+
+
+.sessions-table { display: none; }
