@@ -925,9 +925,11 @@ function UsageTrendChart({ rows, headroomWindow, intraday }: { rows: UsageDay[];
 
     return (
       <div className="usage-trend">
+        <div className="usage-trend-grid">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="usage-trend-svg">
           <polyline className="usage-line usage-line-total" points={points} />
         </svg>
+        </div>
         <div className="usage-trend-footer">
           <span>60m ago</span>
           <span>now · 1m buckets</span>
