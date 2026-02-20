@@ -159,6 +159,8 @@ export function Dashboard() {
   const [deletingCronId, setDeletingCronId] = useState<string | null>(null);
   const [cronActionId, setCronActionId] = useState<string | null>(null);
   const [syncHealth, setSyncHealth] = useState<"healthy" | "delayed">("healthy");
+  const [usageRefreshing, setUsageRefreshing] = useState(false);
+  const [usageRefreshNote, setUsageRefreshNote] = useState<string | null>(null);
   const [stateTestMode, setStateTestMode] = useState(false);
   const [stateTestValue, setStateTestValue] = useState<"idle" | "working" | "blocked" | "error" | "offline">("idle");
 
@@ -268,6 +270,26 @@ export function Dashboard() {
     window.location.reload();
   };
 
+  const refreshUsageNow = async () => {
+    if (usageRefreshing) return;
+    setUsageRefreshing(true);
+    setUsageRefreshNote(null);
+    try {
+      const res = await fetch(`/api/usage`, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body?.ok) {
+        setUsageRollup(body.payload ?? null);
+        setUsageRefreshNote("Usage refreshed just now.");
+      } else {
+        setUsageRefreshNote(`Refresh failed: ${String(body?.error ?? "unknown error")}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "refresh failed";
+      setUsageRefreshNote(`Refresh failed: ${message}`);
+    } finally {
+      setUsageRefreshing(false);
+    }
+  };
 
   const runCronAction = async (jobId: string, op: "enable" | "disable" | "run") => {
     if (!jobId || cronActionId) return;
@@ -328,6 +350,7 @@ export function Dashboard() {
       : null;
   const usageBand = classifyUsageBand(latestUsage?.totalTokens ?? projectedEodTokens ?? null);
   const topDrivers = latestUsage?.topSessions?.slice(0, 3) ?? [];
+  const usageFreshness = classifyFreshness(usageRollup?.generatedAt ?? null);
 
   return (
     <div className="dashboard-shell">
@@ -443,7 +466,16 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle>Usage & Burn</CardTitle>
             <div className="usage-updated">
-              Updated {formatRelativeTime(usageRollup?.generatedAt ?? null)}
+              Data generated {formatRelativeTime(usageRollup?.generatedAt ?? null)} · Dashboard polled {formatRelativeTime(lastRefreshAt)}
+            </div>
+            <div className="usage-updated" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <span className={usageFreshness.tone === "good" ? "tone-good" : "tone-warn"}>
+                {usageFreshness.label}
+              </span>
+              <button className="eventlog-toggle" onClick={refreshUsageNow} disabled={usageRefreshing}>
+                {usageRefreshing ? "Refreshing…" : "Refresh usage now"}
+              </button>
+              {usageRefreshNote ? <span>{usageRefreshNote}</span> : null}
             </div>
           </CardHeader>
           <CardContent>
@@ -990,4 +1022,14 @@ function classifyUsageBand(tokens: number | null): { label: string; detail: stri
   if (tokens < 30000) return { label: "NORMAL", detail: "Light day (<30k tokens)" };
   if (tokens <= 80000) return { label: "BUSY", detail: "Moderate day (30k–80k tokens)" };
   return { label: "HEAVY", detail: "High-usage day (>80k tokens)" };
+}
+
+function classifyFreshness(ts: string | null): { label: string; tone: "good" | "warn" } {
+  if (!ts) return { label: "Stale (>60m)", tone: "warn" };
+  const parsed = Date.parse(ts);
+  if (Number.isNaN(parsed)) return { label: "Stale (>60m)", tone: "warn" };
+  const ageMin = (Date.now() - parsed) / 60000;
+  if (ageMin < 15) return { label: "Fresh (<15m)", tone: "good" };
+  if (ageMin < 60) return { label: "Aging (15–60m)", tone: "warn" };
+  return { label: "Stale (>60m)", tone: "warn" };
 }
