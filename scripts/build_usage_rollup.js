@@ -50,6 +50,24 @@ function normalizeJobName(sessionKey, label) {
   return sessionKey.replace(/^agent:/, "");
 }
 
+function buildBucketSeries(entries, now, windowMs, bucketMs) {
+  const end = Math.floor(now / bucketMs) * bucketMs;
+  const start = end - windowMs + bucketMs;
+  const count = Math.floor(windowMs / bucketMs);
+  const buckets = new Array(count).fill(0);
+
+  for (const e of entries) {
+    if (e.ts < start || e.ts > end) continue;
+    const idx = Math.floor((e.ts - start) / bucketMs);
+    if (idx >= 0 && idx < count) buckets[idx] += e.tokens;
+  }
+
+  return buckets.map((tokens, i) => ({
+    ts: new Date(start + i * bucketMs).toISOString(),
+    tokens,
+  }));
+}
+
 function defaultDailyEntry(date) {
   return {
     date,
@@ -82,8 +100,9 @@ function parseUsageFromSession(sessionPath) {
     if (!usage) continue;
 
     const timestamp = record.timestamp || record.message?.timestamp || null;
+    const ts = Date.parse(timestamp || "");
     const dateKey = toDateKey(timestamp);
-    if (!dateKey) continue;
+    if (!dateKey || Number.isNaN(ts)) continue;
 
     const totalTokens = Number(usage.totalTokens ?? (usage.input ?? 0) + (usage.output ?? 0));
     const totalCost = Number(usage.cost?.total ?? 0);
@@ -92,6 +111,7 @@ function parseUsageFromSession(sessionPath) {
     const model = record.message?.model || record.message?.provider || "unknown";
     const result = {
       dateKey,
+      ts,
       tokens: totalTokens,
       cost: Number.isFinite(totalCost) ? totalCost : 0,
       model,
@@ -121,10 +141,12 @@ function buildRollup() {
   }
 
   const daily = new Map();
+  const allEntries = [];
 
   for (const [sessionFile, info] of fileMetaLookup.entries()) {
     const usageEntries = parseUsageFromSession(sessionFile);
     for (const entry of usageEntries) {
+      allEntries.push(entry);
       if (!daily.has(entry.dateKey)) {
         daily.set(entry.dateKey, defaultDailyEntry(entry.dateKey));
       }
@@ -208,9 +230,14 @@ function buildRollup() {
   }
 
   ensureDir(OUTPUT_PATH);
+  const now = Date.now();
   const payload = {
     generatedAt: new Date().toISOString(),
     dailyBudgetTokens: DAILY_BUDGET_TOKENS,
+    intraday: {
+      minute60: buildBucketSeries(allEntries, now, 60 * 60 * 1000, 60 * 1000),
+      quarter24h: buildBucketSeries(allEntries, now, 24 * 60 * 60 * 1000, 15 * 60 * 1000),
+    },
     days: finalDays,
   };
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(payload, null, 2));

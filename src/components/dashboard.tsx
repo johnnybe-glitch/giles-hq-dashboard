@@ -137,6 +137,10 @@ type UsageDay = {
 type UsageRollup = {
   generatedAt: string | null;
   dailyBudgetTokens: number | null;
+  intraday?: {
+    minute60?: Array<{ ts: string; tokens: number }>;
+    quarter24h?: Array<{ ts: string; tokens: number }>;
+  };
   days: UsageDay[];
 };
 
@@ -530,7 +534,7 @@ export function Dashboard() {
                   {/* headroom moved to dedicated Headroom card */}
                 </div>
 
-                <UsageTrendChart rows={usageTrend} headroomWindow={headroomWindow} />
+                <UsageTrendChart rows={usageTrend} headroomWindow={headroomWindow} intraday={usageRollup?.intraday} />
 
                 <div className="usage-breakdowns">
                   <div className="breakdown-list" style={{ gridColumn: "1 / -1" }}>
@@ -905,7 +909,33 @@ function SeriesLine({ label, values }: { label: string; values: number[] }) {
   );
 }
 
-function UsageTrendChart({ rows, headroomWindow }: { rows: UsageDay[]; headroomWindow?: HeadroomData["windows"][number] | null }) {
+function UsageTrendChart({ rows, headroomWindow, intraday }: { rows: UsageDay[]; headroomWindow?: HeadroomData["windows"][number] | null; intraday?: UsageRollup["intraday"] }) {
+  const minute60 = intraday?.minute60 ?? [];
+
+  if (minute60.length > 1) {
+    const values = minute60.map((p) => p.tokens);
+    const maxValue = Math.max(...values, 1);
+    const points = values
+      .map((value, index) => {
+        const x = (index / Math.max(values.length - 1, 1)) * 100;
+        const y = 100 - (value / maxValue) * 100;
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+    return (
+      <div className="usage-trend">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="usage-trend-svg">
+          <polyline className="usage-line usage-line-total" points={points} />
+        </svg>
+        <div className="usage-trend-footer">
+          <span>60m ago</span>
+          <span>now · 1-min buckets</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!rows.length) {
     return <div className="empty-state">Usage data will appear after the first snapshot.</div>;
   }
@@ -917,7 +947,7 @@ function UsageTrendChart({ rows, headroomWindow }: { rows: UsageDay[]; headroomW
     return (
       <div className="usage-trend usage-trend-empty">
         <div className="usage-trend-empty-text">
-          Need at least two days of history for the line chart. Today: {formatCompact(today?.totalTokens ?? 0)} tokens.
+          Intraday series not ready yet. Today: {formatCompact(today?.totalTokens ?? 0)} tokens.
         </div>
         {percent !== null ? (
           <>
