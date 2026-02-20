@@ -5,14 +5,16 @@ import path from "path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SESSIONS_DIR = "/Users/giles/.openclaw/agents/main/sessions";
+const SESSIONS_DIR = "/Users/giles2/.openclaw/agents/main/sessions";
+
+type TranscriptPart = { type?: string; text?: string };
 
 type TranscriptRow = {
   type?: string;
   timestamp?: string;
   message?: {
     role?: string;
-    content?: Array<{ type?: string; text?: string }>;
+    content?: string | TranscriptPart[];
   };
 };
 
@@ -22,45 +24,51 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") || 10)));
 
-  const file = await latestSessionFile();
-  if (!file) return NextResponse.json({ chats: [] as ChatRow[] });
+  const files = await sessionFilesInPriorityOrder();
+  if (!files.length) return NextResponse.json({ chats: [] as ChatRow[] });
 
-  try {
-    const raw = await fs.readFile(file, "utf8");
-    const rows = raw
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line) as TranscriptRow;
-        } catch {
-          return null;
-        }
-      })
-      .filter((entry): entry is TranscriptRow => Boolean(entry && entry.type === "message" && entry.message))
-      .map((entry) => {
-        const role = entry.message?.role;
-        const rawText = (entry.message?.content ?? [])
-          .filter((part) => part?.type === "text" && typeof part?.text === "string")
-          .map((part) => part.text ?? "")
-          .join(" ");
+  const out: ChatRow[] = [];
 
-        const text = humanizeChat(rawText);
+  for (const file of files) {
+    if (out.length >= limit) break;
 
-        return {
-          ts: typeof entry.timestamp === "string" ? entry.timestamp : null,
-          role: role === "user" || role === "assistant" ? role : "assistant",
-          text,
-        };
-      })
-      .filter((r) => r.text.length > 0)
-      .reverse()
-      .slice(0, limit);
+    try {
+      const raw = await fs.readFile(file, "utf8");
+      const rows = raw
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => {
+          try {
+            return JSON.parse(line) as TranscriptRow;
+          } catch {
+            return null;
+          }
+        })
+        .filter((entry): entry is TranscriptRow => Boolean(entry && entry.type === "message" && entry.message))
+        .map((entry) => {
+          const role = entry.message?.role;
+          const rawText = contentToText(entry.message?.content);
+          const text = humanizeChat(rawText);
 
-    return NextResponse.json({ chats: rows });
-  } catch {
-    return NextResponse.json({ chats: [] as ChatRow[] });
+          return {
+            ts: typeof entry.timestamp === "string" ? entry.timestamp : null,
+            role: role === "user" || role === "assistant" ? role : "assistant",
+            text,
+          };
+        })
+        .filter((r) => r.text.length > 0)
+        .reverse();
+
+      for (const row of rows) {
+        if (out.length >= limit) break;
+        out.push(row);
+      }
+    } catch {
+      continue;
+    }
   }
+
+  return NextResponse.json({ chats: out.slice(0, limit) });
 }
 
 function humanizeChat(input: string): string {
@@ -80,20 +88,48 @@ function humanizeChat(input: string): string {
   return text.length > 180 ? `${text.slice(0, 179)}…` : text;
 }
 
-async function latestSessionFile(): Promise<string | null> {
+async function sessionFilesInPriorityOrder(): Promise<string[]> {
   try {
     const files = (await fs.readdir(SESSIONS_DIR)).filter((f) => f.endsWith(".jsonl"));
-    if (!files.length) return null;
-    const items = await Promise.all(
-      files.map(async (f) => {
-        const fp = path.join(SESSIONS_DIR, f);
+    if (!files.length) return [];
+
+    const withStats = await Promise.all(
+      files.map(async (name) => {
+        const fp = path.join(SESSIONS_DIR, name);
         const st = await fs.stat(fp);
-        return { fp, m: st.mtimeMs };
+        return { name, fp, mtimeMs: st.mtimeMs };
       }),
     );
-    items.sort((a, b) => b.m - a.m);
-    return items[0]?.fp ?? null;
+
+    withStats.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    const mainSessionId = await resolveMainSessionId();
+    const mainFile = mainSessionId ? `${mainSessionId}.jsonl` : null;
+
+    const main = withStats.filter((x) => mainFile && x.name === mainFile).map((x) => x.fp);
+    const others = withStats.filter((x) => !mainFile || x.name !== mainFile).map((x) => x.fp);
+
+    return [...main, ...others];
+  } catch {
+    return [];
+  }
+}
+
+async function resolveMainSessionId(): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(path.join(SESSIONS_DIR, "sessions.json"), "utf8");
+    const parsed = JSON.parse(raw) as Record<string, { sessionId?: string }>;
+    return parsed?.["agent:main:main"]?.sessionId ?? null;
   } catch {
     return null;
   }
+}
+
+function contentToText(content?: string | TranscriptPart[]): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  return content
+    .filter((part) => part?.type === "text" && typeof part?.text === "string")
+    .map((part) => part.text ?? "")
+    .join(" ");
 }
