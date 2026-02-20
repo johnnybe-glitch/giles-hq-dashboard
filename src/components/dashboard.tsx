@@ -992,10 +992,10 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 function classifyUsageBand(tokens: number | null): { label: string; detail: string } {
-  if (!tokens || Number.isNaN(tokens)) return { label: "No data", detail: "Need one run to classify usage" };
-  if (tokens < 30000) return { label: "NORMAL", detail: "Light day (<30k tokens)" };
-  if (tokens <= 80000) return { label: "BUSY", detail: "Moderate day (30k–80k tokens)" };
-  return { label: "HEAVY", detail: "High-usage day (>80k tokens)" };
+  if (!tokens || Number.isNaN(tokens)) return { label: "no data", detail: "Need one run to classify usage" };
+  if (tokens < 30000) return { label: "normal", detail: "Light day (<30k tokens)" };
+  if (tokens <= 80000) return { label: "busy", detail: "Moderate day (30k–80k tokens)" };
+  return { label: "heavy", detail: "High-usage day (>80k tokens)" };
 }
 
 function classifyFreshness(ts: string | null): { label: string; tone: "good" | "warn" } {
