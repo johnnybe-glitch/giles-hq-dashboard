@@ -341,9 +341,7 @@ export function Dashboard() {
   const usageTrend = usageDays.slice(-14);
   const headroomWindow = pickHeadroomWindow(headroom);
   const deltaVsAvg = latestUsage ? latestUsage.totalTokens - latestUsage.sevenDayAvgTokens : null;
-  const headroomUsedPercent = headroomWindow?.usedPercent ?? null;
-  const headroomLeftPercent = headroomWindow?.leftPercent ?? null;
-  const headroomResetLabel = headroomWindow?.resetAt ?? headroom?.updatedAt ?? null;
+  // Headroom summary is shown in the dedicated Headroom card.
   const projectedEodTokens =
     tokens?.burn_rate_per_hour && Number.isFinite(tokens.burn_rate_per_hour)
       ? Math.max(0, Math.round(tokens.burn_rate_per_hour * 24))
@@ -504,16 +502,7 @@ export function Dashboard() {
                     <div className="usage-metric-value">{usageBand.label}</div>
                     <div className="usage-metric-delta">{usageBand.detail}</div>
                   </div>
-                  <div className="usage-metric-tile">
-                    <div className="usage-metric-label">Headroom (Codex)</div>
-                    <div className="usage-metric-value">
-                      {headroomUsedPercent !== null ? `${headroomUsedPercent}% used` : "—"}
-                    </div>
-                    <div className="usage-metric-delta">
-                      {headroomLeftPercent !== null ? `${headroomLeftPercent}% left` : ""}
-                      {headroomResetLabel ? ` · resets ${formatResetTime(headroomResetLabel)}` : ""}
-                    </div>
-                  </div>
+                  {/* headroom moved to dedicated Headroom card */}
                 </div>
 
                 <UsageTrendChart rows={usageTrend} headroomWindow={headroomWindow} />
