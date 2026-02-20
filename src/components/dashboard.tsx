@@ -226,7 +226,6 @@ export function Dashboard() {
 
     loadData();
     const timer = setInterval(() => {
-      setLastRefreshAt(Date.now());
       loadData();
     }, REFRESH_MS);
     return () => {
