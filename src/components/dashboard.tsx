@@ -500,7 +500,7 @@ export function Dashboard() {
               <button className="usage-refresh-btn" onClick={refreshUsageNow} disabled={usageRefreshing} title="Refresh usage now">
                 {usageRefreshing ? "…" : "↻"}
               </button>
-              {usageRefreshNote ? <span className="usage-toolbar-note">{usageRefreshNote}</span> : null}
+              {usageRefreshNote && usageRefreshNote.toLowerCase().includes("failed") ? <span className="usage-toolbar-note">{usageRefreshNote}</span> : null}
             </div>
           </CardHeader>
           <CardContent>
@@ -550,7 +550,7 @@ export function Dashboard() {
                       {usageTableRows.length === 0 ? (
                         <div className="empty-state">No usage breakdown rows yet.</div>
                       ) : (
-                        usageTableRows.map((row, idx) => (
+                        usageTableRows.slice(0,5).map((row, idx) => (
                           <div className="session-row" key={`${row.name}-${idx}`}>
                             <div className="session-meta-block">
                               <div className="session-id">{row.name}</div>
@@ -930,7 +930,7 @@ function UsageTrendChart({ rows, headroomWindow, intraday }: { rows: UsageDay[];
         </svg>
         <div className="usage-trend-footer">
           <span>60m ago</span>
-          <span>now · 1-min buckets</span>
+          <span>now · 1m buckets</span>
         </div>
       </div>
     );
@@ -1046,9 +1046,9 @@ function formatCurrency(value: number | null | undefined): string {
 
 function classifyUsageBand(tokens: number | null): { label: string; detail: string } {
   if (!tokens || Number.isNaN(tokens)) return { label: "no data", detail: "Need one run to classify usage" };
-  if (tokens < 30000) return { label: "normal", detail: "Light day (<30k tokens)" };
-  if (tokens <= 80000) return { label: "busy", detail: "Moderate day (30k–80k tokens)" };
-  return { label: "heavy", detail: "High-usage day (>80k tokens)" };
+  if (tokens < 30000) return { label: "normal", detail: "<30k tokens" };
+  if (tokens <= 80000) return { label: "busy", detail: "30k–80k tokens" };
+  return { label: "heavy", detail: ">80k tokens" };
 }
 
 function classifyFreshness(ts: string | null): { label: string; tone: "good" | "warn" } {
