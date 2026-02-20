@@ -45,6 +45,9 @@ type WorkerData = {
   last_error?: string;
   last_command?: string;
   duration_seconds?: number;
+  run_count?: number;
+  last_run_at?: string;
+  last_run_status?: "ok" | "blocked" | "error";
   isMain?: boolean;
 };
 
@@ -588,6 +591,11 @@ export function Dashboard() {
                     <div className="worker-submeta">
                       {worker.last_command ? <span>last command: {worker.last_command}</span> : <span>last command: —</span>}
                       <span> · duration: {typeof worker.duration_seconds === "number" ? `${worker.duration_seconds}s` : "—"}</span>
+                    </div>
+                    <div className="worker-submeta">
+                      <span>runs: {typeof worker.run_count === "number" ? worker.run_count : 0}</span>
+                      <span> · last run: {formatRelativeTime(worker.last_run_at ?? null)}</span>
+                      {worker.last_run_status ? <span> · result: {worker.last_run_status.toUpperCase()}</span> : null}
                     </div>
                     {(worker.state === "error" || worker.state === "blocked") && worker.last_error ? (
                       <div className="worker-error-line" title={worker.last_error}>{worker.last_error}</div>

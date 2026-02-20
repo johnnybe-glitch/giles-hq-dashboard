@@ -29,6 +29,9 @@ type WorkerRow = {
   last_error?: string;
   last_command?: string;
   duration_seconds?: number;
+  run_count?: number;
+  last_run_at?: string;
+  last_run_status?: "ok" | "blocked" | "error";
   isMain?: boolean;
 };
 
@@ -46,6 +49,9 @@ type WorkerFile = {
     last_error?: string;
     last_command?: string;
     duration_seconds?: number;
+    run_count?: number;
+    last_run_at?: string;
+    last_run_status?: string;
   }>;
 };
 
@@ -82,6 +88,9 @@ async function readWorkersFromRuntime(): Promise<WorkerRow[]> {
         last_error: normalizeText(w.last_error),
         last_command: normalizeText(w.last_command),
         duration_seconds: normalizeSeconds(w.duration_seconds),
+        run_count: normalizeCount(w.run_count),
+        last_run_at: normalizeIso(w.last_run_at),
+        last_run_status: normalizeRunStatus(w.last_run_status),
         isMain: String(w.id ?? "").toLowerCase() === "main",
       }));
       return rows.filter((r) => r.id);
@@ -110,6 +119,9 @@ function mergeRoster(input: WorkerRow[]): WorkerRow[] {
       last_error: state === "error" || state === "blocked" ? live?.last_error : undefined,
       last_command: live?.last_command,
       duration_seconds: live?.duration_seconds,
+      run_count: live?.run_count,
+      last_run_at: live?.last_run_at,
+      last_run_status: live?.last_run_status,
       isMain: base.id === "main",
     };
   });
@@ -136,4 +148,15 @@ function normalizeIso(value?: string): string | undefined {
 function normalizeSeconds(value?: number): number | undefined {
   if (typeof value !== "number" || Number.isNaN(value) || value < 0) return undefined;
   return Math.round(value);
+}
+
+function normalizeCount(value?: number): number | undefined {
+  if (typeof value !== "number" || Number.isNaN(value) || value < 0) return undefined;
+  return Math.floor(value);
+}
+
+function normalizeRunStatus(value?: string): "ok" | "blocked" | "error" | undefined {
+  const v = (value ?? "").toLowerCase();
+  if (v === "ok" || v === "blocked" || v === "error") return v;
+  return undefined;
 }
