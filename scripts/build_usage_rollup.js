@@ -38,6 +38,18 @@ function addToMap(map, key, tokens, cost) {
   map[key].cost += cost;
 }
 
+function normalizeJobName(sessionKey, label) {
+  if (label && typeof label === "string") return label.replace(/^Cron:\s*/i, "").trim();
+  if (!sessionKey) return "unknown";
+  if (sessionKey.includes(":cron:")) {
+    const m = sessionKey.match(/:cron:([^:]+)/);
+    return m ? `cron:${m[1]}` : "cron";
+  }
+  if (sessionKey.includes(":subagent:")) return "subagent";
+  if (sessionKey.endsWith(":main")) return "main";
+  return sessionKey.replace(/^agent:/, "");
+}
+
 function defaultDailyEntry(date) {
   return {
     date,
@@ -48,6 +60,7 @@ function defaultDailyEntry(date) {
     byModel: {},
     byChannel: {},
     sessions: {},
+    byJob: {},
     sevenDayAvgTokens: 0,
     sevenDayAvgCost: 0,
   };
@@ -103,6 +116,7 @@ function buildRollup() {
       key,
       channel: meta.lastChannel || meta.deliveryContext?.channel || meta.origin?.provider || "unknown",
       chatType: meta.chatType || "direct",
+      label: meta.label || null,
     });
   }
 
@@ -132,6 +146,14 @@ function buildRollup() {
       }
       day.sessions[info.key].tokens += entry.tokens;
       day.sessions[info.key].cost += entry.cost;
+
+      const jobName = normalizeJobName(info.key, info.label);
+      if (!day.byJob[jobName]) {
+        day.byJob[jobName] = { job: jobName, tokens: 0, cost: 0, runs: 0 };
+      }
+      day.byJob[jobName].tokens += entry.tokens;
+      day.byJob[jobName].cost += entry.cost;
+      day.byJob[jobName].runs += 1;
     }
   }
 
@@ -162,6 +184,13 @@ function buildRollup() {
     const topSessions = Object.values(day.sessions)
       .sort((a, b) => b.tokens - a.tokens)
       .slice(0, 5);
+    const byJobArr = Object.values(day.byJob)
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 10)
+      .map((row) => ({
+        ...row,
+        avgPerRun: row.runs > 0 ? row.tokens / row.runs : row.tokens,
+      }));
 
     finalDays.push({
       date: dateKey,
@@ -173,6 +202,7 @@ function buildRollup() {
       sevenDayAvgCost: Number(day.sevenDayAvgCost.toFixed(6)),
       byModel: byModelArr,
       byChannel: byChannelArr,
+      byJob: byJobArr,
       topSessions,
     });
   }

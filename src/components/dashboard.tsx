@@ -130,6 +130,7 @@ type UsageDay = {
   sevenDayAvgCost: number;
   byModel: Array<{ model: string; tokens: number; cost: number }>;
   byChannel: Array<{ channel: string; tokens: number; cost: number }>;
+  byJob?: Array<{ job: string; tokens: number; cost: number; runs: number; avgPerRun: number }>;
   topSessions: UsageSessionRow[];
 };
 
@@ -163,6 +164,7 @@ export function Dashboard() {
   const [usageRefreshNote, setUsageRefreshNote] = useState<string | null>(null);
   const [stateTestMode, setStateTestMode] = useState(false);
   const [stateTestValue, setStateTestValue] = useState<"idle" | "working" | "blocked" | "error" | "offline">("idle");
+  const [usageView, setUsageView] = useState<"drivers" | "jobs" | "sessions">("jobs");
 
   // Workers roster is always visible; no local clearing state.
 
@@ -346,7 +348,31 @@ export function Dashboard() {
       ? Math.max(0, Math.round(tokens.burn_rate_per_hour * 24))
       : null;
   const usageBand = classifyUsageBand(latestUsage?.totalTokens ?? projectedEodTokens ?? null);
-  const topDrivers = latestUsage?.topSessions?.slice(0, 3) ?? [];
+  const topDrivers = latestUsage?.topSessions?.slice(0, 5) ?? [];
+  const topJobs = latestUsage?.byJob?.slice(0, 8) ?? [];
+  const usageTableRows = usageView === "jobs"
+    ? topJobs.map((r) => ({
+        name: r.job,
+        tokens: r.tokens,
+        pct: latestUsage?.totalTokens ? (r.tokens / latestUsage.totalTokens) * 100 : 0,
+        runs: r.runs,
+        avg: r.avgPerRun,
+      }))
+    : usageView === "sessions"
+      ? topDrivers.map((r) => ({
+          name: r.sessionKey.replace(/^agent:/, ""),
+          tokens: r.tokens,
+          pct: latestUsage?.totalTokens ? (r.tokens / latestUsage.totalTokens) * 100 : 0,
+          runs: 1,
+          avg: r.tokens,
+        }))
+      : topDrivers.map((r) => ({
+          name: r.sessionKey.replace(/^agent:/, ""),
+          tokens: r.tokens,
+          pct: latestUsage?.totalTokens ? (r.tokens / latestUsage.totalTokens) * 100 : 0,
+          runs: 1,
+          avg: r.tokens,
+        }));
   const usageFreshness = classifyFreshness(usageRollup?.generatedAt ?? null);
 
   return (
@@ -507,22 +533,31 @@ export function Dashboard() {
                 <UsageTrendChart rows={usageTrend} headroomWindow={headroomWindow} />
 
                 <div className="usage-breakdowns">
-                  <BreakdownList
-                    title="Top token drivers today"
-                    rows={topDrivers.map((row) => ({
-                      label: row.sessionKey.replace(/^agent:/, ""),
-                      tokens: row.tokens,
-                      cost: row.cost,
-                    }))}
-                  />
-                  <BreakdownList
-                    title="Channels"
-                    rows={latestUsage.byChannel.map((row) => ({
-                      label: row.channel,
-                      tokens: row.tokens,
-                      cost: row.cost,
-                    }))}
-                  />
+                  <div className="breakdown-list" style={{ gridColumn: "1 / -1" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div className="breakdown-title">token burn detail</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="eventlog-toggle" onClick={() => setUsageView("jobs")}>by job</button>
+                        <button className="eventlog-toggle" onClick={() => setUsageView("sessions")}>by session</button>
+                        <button className="eventlog-toggle" onClick={() => setUsageView("drivers")}>top drivers</button>
+                      </div>
+                    </div>
+                    <div className="sessions-rows">
+                      {usageTableRows.length === 0 ? (
+                        <div className="empty-state">No usage breakdown rows yet.</div>
+                      ) : (
+                        usageTableRows.map((row, idx) => (
+                          <div className="session-row" key={`${row.name}-${idx}`}>
+                            <div className="session-meta-block">
+                              <div className="session-id">{row.name}</div>
+                              <div className="session-meta-text">{row.pct.toFixed(1)}% · runs {row.runs} · avg {formatCompact(row.avg)}</div>
+                            </div>
+                            <div className="session-tokens">{formatCompact(row.tokens)}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
 
               </>
