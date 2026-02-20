@@ -9,6 +9,7 @@ const DAILY_BUDGET_TOKENS = Number(process.env.DAILY_BUDGET_TOKENS || 80000);
 const OUTPUT_PATH = path.join(__dirname, "..", "src", "data", "usage-rollup.json");
 const SESSIONS_ROOT = path.join(process.env.HOME || ".", ".openclaw", "agents", "main", "sessions");
 const SESSIONS_INDEX = path.join(SESSIONS_ROOT, "sessions.json");
+const WORKER_RUNS_PATH = process.env.WORKER_RUNS_PATH || path.join(process.env.HOME || ".", "Desktop", "_Giles Shared", "runtime", "worker-runs.jsonl");
 
 function readJson(file) {
   try {
@@ -79,6 +80,7 @@ function defaultDailyEntry(date) {
     byChannel: {},
     sessions: {},
     byJob: {},
+    byJobRuns: {},
     sevenDayAvgTokens: 0,
     sevenDayAvgCost: 0,
   };
@@ -120,6 +122,35 @@ function parseUsageFromSession(sessionPath) {
   }
 
   return results;
+}
+
+
+function parseWorkerRuns(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/).filter(Boolean);
+  const out = [];
+  for (const line of lines) {
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const ts = Date.parse(row.ts || "");
+    if (Number.isNaN(ts)) continue;
+    const dateKey = toDateKey(row.ts);
+    if (!dateKey) continue;
+    const tokens = Number(row.tokens || 0);
+    if (!Number.isFinite(tokens) || tokens <= 0) continue;
+    out.push({
+      dateKey,
+      job: row.job || row.worker || "unknown",
+      tokens,
+      cost: Number(row.cost || 0),
+      status: row.status || "unknown",
+    });
+  }
+  return out;
 }
 
 function buildRollup() {
@@ -179,6 +210,20 @@ function buildRollup() {
     }
   }
 
+  const workerRuns = parseWorkerRuns(WORKER_RUNS_PATH);
+  for (const run of workerRuns) {
+    if (!daily.has(run.dateKey)) daily.set(run.dateKey, defaultDailyEntry(run.dateKey));
+    const day = daily.get(run.dateKey);
+    const key = run.job || "unknown";
+    if (!day.byJobRuns[key]) day.byJobRuns[key] = { job: key, tokens: 0, cost: 0, runs: 0, ok: 0, blocked: 0, error: 0 };
+    day.byJobRuns[key].tokens += run.tokens;
+    day.byJobRuns[key].cost += Number.isFinite(run.cost) ? run.cost : 0;
+    day.byJobRuns[key].runs += 1;
+    if (run.status === "ok") day.byJobRuns[key].ok += 1;
+    else if (run.status === "blocked") day.byJobRuns[key].blocked += 1;
+    else day.byJobRuns[key].error += 1;
+  }
+
   const sortedDates = Array.from(daily.keys()).sort();
   const finalDays = [];
   const tokenWindow = [];
@@ -206,7 +251,8 @@ function buildRollup() {
     const topSessions = Object.values(day.sessions)
       .sort((a, b) => b.tokens - a.tokens)
       .slice(0, 5);
-    const byJobArr = Object.values(day.byJob)
+    const byJobSource = Object.keys(day.byJobRuns || {}).length ? day.byJobRuns : day.byJob;
+    const byJobArr = Object.values(byJobSource)
       .sort((a, b) => b.tokens - a.tokens)
       .slice(0, 10)
       .map((row) => ({
