@@ -315,12 +315,16 @@ export function Dashboard() {
   const latestUsage = usageDays.length ? usageDays[usageDays.length - 1] : null;
   const usageTrend = usageDays.slice(-14);
   const headroomWindow = pickHeadroomWindow(headroom);
-  const budgetTokens = latestUsage?.budgetTokens ?? usageRollup?.dailyBudgetTokens ?? null;
-  const deltaVsBudget = latestUsage && budgetTokens ? latestUsage.totalTokens - budgetTokens : null;
   const deltaVsAvg = latestUsage ? latestUsage.totalTokens - latestUsage.sevenDayAvgTokens : null;
   const headroomUsedPercent = headroomWindow?.usedPercent ?? null;
   const headroomLeftPercent = headroomWindow?.leftPercent ?? null;
   const headroomResetLabel = headroomWindow?.resetAt ?? headroom?.updatedAt ?? null;
+  const projectedEodTokens =
+    tokens?.burn_rate_per_hour && Number.isFinite(tokens.burn_rate_per_hour)
+      ? Math.max(0, Math.round(tokens.burn_rate_per_hour * 24))
+      : null;
+  const usageBand = classifyUsageBand(latestUsage?.totalTokens ?? projectedEodTokens ?? null);
+  const topDrivers = latestUsage?.topSessions?.slice(0, 3) ?? [];
 
   return (
     <div className="dashboard-shell">
@@ -444,7 +448,7 @@ export function Dashboard() {
               <>
                 <div className="usage-metrics">
                   <div>
-                    <div className="usage-metric-label">Today</div>
+                    <div className="usage-metric-label">Tokens today</div>
                     <div className="usage-metric-value">{formatCompact(latestUsage.totalTokens)} tokens</div>
                     {deltaVsAvg !== null ? (
                       <div className={`usage-metric-delta ${deltaVsAvg >= 0 ? "delta-up" : "delta-down"}`}>
@@ -454,16 +458,18 @@ export function Dashboard() {
                     ) : null}
                   </div>
                   <div>
-                    <div className="usage-metric-label">Budget (est)</div>
+                    <div className="usage-metric-label">Burn rate now</div>
                     <div className="usage-metric-value">
-                      {budgetTokens ? `${formatCompact(budgetTokens)} tokens` : "—"}
+                      {tokens?.burn_rate_per_hour ? `${formatCompact(tokens.burn_rate_per_hour)} / hr` : "—"}
                     </div>
-                    {deltaVsBudget !== null ? (
-                      <div className={`usage-metric-delta ${deltaVsBudget > 0 ? "delta-up" : "delta-down"}`}>
-                        {deltaVsBudget > 0 ? "+" : ""}
-                        {formatCompact(Math.abs(deltaVsBudget))} vs est. budget
-                      </div>
-                    ) : null}
+                    <div className="usage-metric-delta">
+                      {projectedEodTokens ? `proj. EOD ${formatCompact(projectedEodTokens)} tokens` : "Projection unavailable"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="usage-metric-label">Usage mode</div>
+                    <div className="usage-metric-value">{usageBand.label}</div>
+                    <div className="usage-metric-delta">{usageBand.detail}</div>
                   </div>
                   <div>
                     <div className="usage-metric-label">Headroom (Codex)</div>
@@ -477,13 +483,13 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <UsageTrendChart rows={usageTrend} budgetTokens={budgetTokens} headroomWindow={headroomWindow} />
+                <UsageTrendChart rows={usageTrend} headroomWindow={headroomWindow} />
 
                 <div className="usage-breakdowns">
                   <BreakdownList
-                    title="Models"
-                    rows={latestUsage.byModel.map((row) => ({
-                      label: row.model,
+                    title="Top token drivers today"
+                    rows={topDrivers.map((row) => ({
+                      label: row.sessionKey.replace(/^agent:/, ""),
                       tokens: row.tokens,
                       cost: row.cost,
                     }))}
@@ -839,14 +845,14 @@ function SeriesLine({ label, values }: { label: string; values: number[] }) {
   );
 }
 
-function UsageTrendChart({ rows, budgetTokens, headroomWindow }: { rows: UsageDay[]; budgetTokens: number | null | undefined; headroomWindow?: HeadroomData["windows"][number] | null }) {
+function UsageTrendChart({ rows, headroomWindow }: { rows: UsageDay[]; headroomWindow?: HeadroomData["windows"][number] | null }) {
   if (!rows.length) {
     return <div className="empty-state">Usage data will appear after the first snapshot.</div>;
   }
 
   if (rows.length <= 1) {
     const today = rows[0];
-    const percent = headroomWindow?.usedPercent ?? (budgetTokens && today?.totalTokens ? (today.totalTokens / budgetTokens) * 100 : null);
+    const percent = headroomWindow?.usedPercent ?? null;
 
     return (
       <div className="usage-trend usage-trend-empty">
@@ -859,9 +865,7 @@ function UsageTrendChart({ rows, budgetTokens, headroomWindow }: { rows: UsageDa
               <div className="usage-progress-fill" style={{ width: `${Math.max(2, Math.min(percent, 100))}%` }} />
             </div>
             <div className="usage-progress-meta">
-              {headroomWindow
-                ? `${percent.toFixed(1)}% of Codex headroom used · resets ${formatResetTime(headroomWindow.resetAt)}`
-                : `${percent.toFixed(1)}% of estimated budget consumed`}
+              {`${percent.toFixed(1)}% of Codex headroom used · resets ${formatResetTime(headroomWindow?.resetAt)}`}
             </div>
           </>
         ) : null}
@@ -871,8 +875,7 @@ function UsageTrendChart({ rows, budgetTokens, headroomWindow }: { rows: UsageDa
 
   const totals = rows.map((r) => r.totalTokens);
   const avgs = rows.map((r) => r.sevenDayAvgTokens);
-  const budgets = rows.map((r) => r.budgetTokens ?? budgetTokens ?? null);
-  const maxValue = Math.max(...totals, ...avgs, ...(budgets.filter((v): v is number => typeof v === "number")), 1);
+  const maxValue = Math.max(...totals, ...avgs, 1);
 
   const toPoints = (values: Array<number | null>) =>
     values
@@ -887,12 +890,10 @@ function UsageTrendChart({ rows, budgetTokens, headroomWindow }: { rows: UsageDa
 
   const totalPoints = toPoints(totals);
   const avgPoints = toPoints(avgs);
-  const budgetPoints = budgets.some((b) => typeof b === "number") ? toPoints(budgets) : null;
 
   return (
     <div className="usage-trend">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="usage-trend-svg">
-        {budgetPoints ? <polyline className="usage-line usage-line-budget" points={budgetPoints} /> : null}
         <polyline className="usage-line usage-line-avg" points={avgPoints} />
         <polyline className="usage-line usage-line-total" points={totalPoints} />
       </svg>
@@ -974,4 +975,11 @@ function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const digits = value >= 1 ? 2 : 4;
   return `$${value.toFixed(digits)}`;
+}
+
+function classifyUsageBand(tokens: number | null): { label: string; detail: string } {
+  if (!tokens || Number.isNaN(tokens)) return { label: "No data", detail: "Need one run to classify usage" };
+  if (tokens < 30000) return { label: "NORMAL", detail: "Light day (<30k tokens)" };
+  if (tokens <= 80000) return { label: "BUSY", detail: "Moderate day (30k–80k tokens)" };
+  return { label: "HEAVY", detail: "High-usage day (>80k tokens)" };
 }
